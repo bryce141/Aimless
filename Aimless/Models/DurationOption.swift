@@ -23,6 +23,25 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     var minutes: Double { Double(rawValue) }
     var label: String { self == .twoHours ? "2 hr" : "\(rawValue) min" }
 
+    /// How a person would say it. "90 min" is a spec; "1½ hours" is a plan for
+    /// the afternoon. Used for the big readout above the slider.
+    var spokenLabel: String {
+        switch self {
+        case .sixty:    return "1 hour"
+        case .ninety:   return "1½ hours"
+        case .twoHours: return "2 hours"
+        }
+    }
+
+    /// Short form for the slider's tick marks, where space is tight.
+    var tickLabel: String {
+        switch self {
+        case .sixty:    return "1 hr"
+        case .ninety:   return "1½"
+        case .twoHours: return "2 hr"
+        }
+    }
+
     /// Sized to hit the target as a **driven** duration, not as a round-trip
     /// duration. The rerouted path runs 72-82% of the round trip, so the
     /// candidates have to be correspondingly larger.
