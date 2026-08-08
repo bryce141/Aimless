@@ -1,10 +1,13 @@
 import MapKit
 import SwiftUI
+import UIKit
 
 struct GenerateView: View {
     @State private var location = LocationProvider()
     @State private var model = LoopViewModel()
     @State private var showResults = false
+
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -31,10 +34,13 @@ struct GenerateView: View {
                 Spacer()
 
                 if let message = statusMessage {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    VStack(spacing: 6) {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                        recovery
+                    }
                 }
 
                 Button(action: generate) {
@@ -49,7 +55,7 @@ struct GenerateView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(location.current == nil || model.isGenerating)
+                .disabled(!location.isUsable || model.isGenerating)
             }
             .padding()
             .navigationTitle("Aimless")
@@ -57,6 +63,12 @@ struct GenerateView: View {
                 LoopResultsView(loops: model.loops, duration: model.duration)
             }
             .onAppear { location.start() }
+            // The fix is taken once. Without this, opening the app in the
+            // driveway and generating an hour later somewhere else builds the
+            // loop around the driveway.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { location.start() }
+            }
         }
     }
 
@@ -68,13 +80,33 @@ struct GenerateView: View {
     }
 
     private var statusMessage: String? {
-        if location.isDenied {
-            return "Aimless needs location access to start a loop where you are. Enable it in Settings."
-        }
-        if location.current == nil {
+        switch location.status {
+        case .denied:
+            return "Aimless needs location access to start a loop where you are."
+        case .reducedAccuracy:
+            return "Precise Location is off, so we can't tell where the loop should start. Turn it on for Aimless."
+        case .failed:
+            return "Couldn't get a location fix. Somewhere with a clearer view of the sky usually does it."
+        case .locating:
             return "Finding you\u{2026}"
+        case .ready:
+            return model.errorMessage
         }
-        return model.errorMessage
+    }
+
+    /// The way out of each stuck state. Without these the screen states a
+    /// problem and offers nothing to do about it.
+    @ViewBuilder private var recovery: some View {
+        switch location.status {
+        case .denied, .reducedAccuracy:
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                Link("Open Settings", destination: url).font(.footnote)
+            }
+        case .failed:
+            Button("Try Again") { location.start() }.font(.footnote)
+        case .locating, .ready:
+            EmptyView()
+        }
     }
 
     private func generate() {

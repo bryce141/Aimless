@@ -31,13 +31,11 @@ physical: put it on a phone and drive one.
   screenshots, write the bundle ID into
   `<device>/data/Library/Caches/locationd/clients.plist` with `Authorized=true`
   while the device is shut down. Only matters for automation.
-- **The enclosing folder is still named `LongWay/`.** The project inside is
-  `Aimless.xcodeproj`. Cosmetic, but confusing when navigating.
 
 ## Project
 
 ```
-Developer/LongWay/           <- folder not yet renamed
+Developer/Aimless/
   Aimless.xcodeproj
   Aimless/
     AimlessApp.swift
@@ -117,9 +115,42 @@ Roughly 18 requests and about a second per generate.
 Keeping `RoundTrip` and `Loop` as separate types is deliberate. Conflating them
 is what let the app display a duration nobody would drive.
 
+## Pre-drive hardening
+
+Four failure modes that a simulator on wifi never reproduces, all fixed before
+the first drive. None were caught by the live API testing, because all of them
+live above the API client.
+
+1. **The app could hang on "Finding you…" permanently.** `requestLocation()` is
+   one-shot and `didFailWithError` did nothing, so a failed fix — parking
+   garage, cold start indoors — left Generate disabled forever under a message
+   claiming we were still looking. Only escape was force-quitting. Now surfaced
+   as a retryable state with a **Try Again** button.
+2. **Precise Location off produced a silently wrong loop.** Nothing checked
+   `accuracyAuthorization`. Under reduced accuracy CoreLocation still returns a
+   coordinate, fuzzed by kilometers, so the app would build and hand Google a
+   loop starting somewhere the driver isn't. That's a wrong answer, not an
+   error, so it now blocks generation and links to Settings.
+3. **No signal blamed the wrong thing.** Offline, all 12 seeds throw `URLError`
+   and the user got "couldn't build any loops from here" — which sends them
+   driving somewhere else when the fix is a bar of signal. Now a distinct
+   `.offline` case, for the same reason `.rateLimited` is one.
+4. **The fix never refreshed.** Taken once on appear. Open the app in the
+   driveway, drive ten miles, hit Generate, get a loop around the driveway. Now
+   re-requested on return to the foreground.
+
+`LocationProvider` gained a `Status` enum in the process — `denied`,
+`reducedAccuracy`, `failed` and `locating` need different words on screen and
+only one of them is fixed by waiting, which the old `isDenied` bool couldn't say.
+
 ## Open
 
 - **Never been driven.** Everything past this point is guesswork without it.
+- **Request timeout is 30s, unmeasured.** Generous against measured 0.5-1.0s
+  responses, so on flaky cell it means a 30-second spinner with no cancel. Left
+  alone deliberately — lowering it without measuring risks failing slow-but-fine
+  requests, and this app's whole environment is marginal signal. Revisit with
+  data from the drive.
 - **The 60 and 90 minute request sizes are derived, not directly measured.**
   Only 120 was measured against true driven duration. The duration filter
   absorbs table error, so this costs candidates rather than accuracy.
@@ -171,4 +202,6 @@ internal builds, 90-day builds.
 - `loopgen_ors.py` — ORS prototype, reads `ORS_KEY` env var. Stale, see above.
 - `loopgen.py` — earlier GraphHopper attempt, superseded.
 - `geojson2gpx.py` — converts loop output to GPX for simulated movement (v2).
-- `*.geojson`, `gpx/` — prototype output.
+- `*.geojson`, `gpx/` — prototype output. `p8.geojson` is only the start marker;
+  the route that went with it is `p8_route.geojson`, renamed out of
+  `p8.geojsonclear` — a `> p8.geojson` and a `clear` on one line.

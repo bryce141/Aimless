@@ -7,6 +7,11 @@ enum RouteServiceError: LocalizedError {
     /// ORS free tier allows 40 requests/minute. One generate costs ~18, so two
     /// back-to-back are fine and three are not.
     case rateLimited
+    /// No usable connection. Worth its own case for the same reason
+    /// `rateLimited` is: a dead network looks exactly like a dead origin, and
+    /// "couldn't build any loops from here" sends the driver somewhere else to
+    /// try again when the real fix is a bar of signal.
+    case offline
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +20,24 @@ enum RouteServiceError: LocalizedError {
                 .trimmingCharacters(in: .whitespaces)
         case .rateLimited:
             return "Hit the OpenRouteService rate limit. Wait a minute, then try again."
+        case .offline:
+            return "No connection. Aimless needs data to build a loop — check your signal and try again."
+        }
+    }
+}
+
+extension URLError {
+    /// Codes that mean "the network is the problem", collapsed into one
+    /// question the driver can act on. A timeout belongs here: at the measured
+    /// 0.5-1.0s response time, a 30-second timeout is a connection problem.
+    var isConnectivityFailure: Bool {
+        switch code {
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
+             .cannotConnectToHost, .cannotFindHost, .timedOut,
+             .internationalRoamingOff:
+            return true
+        default:
+            return false
         }
     }
 }
@@ -99,6 +122,11 @@ struct RouteService {
 
         let trips = results.compactMap { try? $0.get() }
         guard !trips.isEmpty else {
+            // Order matters: a 429 proves the network works, so connectivity is
+            // the more fundamental diagnosis when both somehow appear.
+            if errors.contains(where: { ($0 as? URLError)?.isConnectivityFailure == true }) {
+                throw RouteServiceError.offline
+            }
             if throttled { throw RouteServiceError.rateLimited }
             throw RouteServiceError.allSeedsFailed(
                 lastMessage: errors.last?.localizedDescription)
