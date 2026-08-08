@@ -57,11 +57,14 @@ enum Handoff {
 
     /// Universal link form — works whether or not the Google Maps app is
     /// installed. If it isn't, this opens in Safari, which still works.
+    ///
+    /// Uses the waypoints already stored on the loop rather than re-downsampling
+    /// its polyline. The loop's polyline *is* the route through those waypoints,
+    /// so downsampling it again would hand Google a different set of stops than
+    /// the ones we timed and drew.
     static func googleMapsURL(for loop: Loop) -> URL? {
         guard let start = loop.start else { return nil }
-        return googleMapsURL(
-            start: start,
-            waypoints: waypoints(along: loop.coordinates))
+        return googleMapsURL(start: start, waypoints: loop.waypoints)
     }
 
     static func googleMapsURL(

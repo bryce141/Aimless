@@ -106,6 +106,25 @@ contort the design to avoid one.
 The seed budget is therefore not driven by HTTP failures. It's driven by duration
 spread, see LoopScorer.
 
+**Seeds are deterministic, and this matters.** A seed is not a dice roll. The
+same seed at the same origin and request size returns the byte-identical result
+every time, failures included. Seed 3 failed at 75km, 85km and 100km; seed 6
+failed at 63km in two separate runs hours apart.
+
+Consequence: a retry round must ask for *fresh* seed numbers. Re-rolling 1...12
+re-fetches the identical twelve results, including the identical failures, for
+the identical cost.
+
+**Rate limit: 40 requests/minute on the free tier.** This bites, because one
+generate costs ~18 requests. Two back-to-back are fine; a third inside the same
+minute gets throttled. A throttled round is indistinguishable from "no loop
+matched" unless you look for HTTP 429, so `RouteService` reports rate limiting
+separately and the UI says so rather than blaming the search.
+
+Discovered the hard way: an early test ran all three picker options back to back
+and concluded the 2 hour option was broken. It wasn't. Requests 37 onward were
+simply being refused.
+
 **ORS caps round trips at 100km.** At back-road speeds that's roughly a two hour
 ceiling. Longer drives are not reachable on the hosted API, see Known ceilings.
 
@@ -165,12 +184,31 @@ LoopApp/
 
 ### LoopScorer
 
-**Filter on duration, not distance.** The user picks minutes, so minutes is what
-we judge against. `properties.summary.duration` is in the response already, and
-it is the only trustworthy estimate we have, since neither request size nor
-actual distance predicts drive time (see the variance finding above).
+**Two phases.** A round trip is a candidate, not a result. What the user drives
+is Google's route through the 8 handoff waypoints, which runs 72-82% of the round
+trip's duration. So:
 
-Filter and rank the raw candidates. Reject:
+1. Ask for 12 round-trip candidates.
+2. Pre-filter cheaply on what we already have — reject highway share above 20%,
+   and anything whose estimated driven duration is more than 45% off target.
+   Keep at most 6, best first.
+3. Verify those by downsampling to 8 waypoints and asking ORS to route through
+   them. That rerouted path is the `Loop`: its polyline goes on the map, its
+   duration is what we print, its waypoints are what we hand to Google.
+4. Filter and rank the verified loops.
+
+The pre-filter exists because verification costs one request each. Its thresholds
+are deliberately looser than the real ones, since a candidate's round-trip
+numbers only approximate its driven ones — driven highway share tracks the
+round-trip figure closely but usually runs a little higher.
+
+Cost: ~18 requests per generate, about a second. Watch the 40/minute rate limit.
+
+**Filter on duration, not distance.** The user picks minutes, so minutes is what
+we judge against. Neither request size nor distance predicts drive time (see the
+variance finding above), but the verified route's own duration is exact.
+
+Filter and rank the verified loops. Reject:
 - highway share above 15%
 - returned duration outside +/-25% of the picked duration
 - if fewer than 3 survive, retry with new seeds. A retry round costs about a
@@ -233,18 +271,19 @@ No direction picker in v1, cut per HANDOFF.md. See Direction bias.
 
 **The picker floor is 60 minutes, not 30.** See Known floors below.
 
-**Map duration to request size with this table, don't compute it.** These are
-measured medians at the Marlboro origin, not derived from a speed assumption:
+**Map duration to request size with this table, don't compute it.** Sizes target
+the **driven** duration, so they're larger than the drive itself implies:
 
-| picked | request | median result |
-|--------|---------|---------------|
-| 60 min | 14 km   | ~26 km, 61 min |
-| 90 min | 34 km   | ~55 km, 90 min |
-| 120 min| 63 km   | ~84 km, 113 min |
+| picked | request | measured result |
+|--------|---------|-----------------|
+| 60 min | 33 km   | 58 min driven |
+| 90 min | 70 km   | 93 min driven |
+| 120 min| 85 km   | 124 min driven |
 
-The 90 min row is interpolated between measured points at 31km and 47km; the
-other two are measured directly. The table only has to land in the right
-ballpark, because the duration filter in LoopScorer does the real work.
+All three land within 4% of target. Do not raise past 100km — ORS rejects it
+with HTTP 400. The table only has to land in the right ballpark, because the
+duration filter in LoopScorer does the real work; table error costs candidates,
+not accuracy.
 
 **Results:** the three loops as a swipeable card stack or segmented picker, each
 drawing its polyline on a MapKit view. Per loop show actual distance, estimated
@@ -339,20 +378,23 @@ and comparing against the original round trip:
 Good news: highway share stays at 0% even at 120 minutes, so the shape holds and
 the 120 minute option is safe. That was the open worry and it's resolved.
 
-**Bad news: the driven route runs roughly 70-80% of the duration we display.**
-Routing between waypoints takes straighter, faster paths than the wandering
-original. This is not fixable by adding waypoints — measured at 8/10/12/16/24
-waypoints on the same loop, the recovery is slow and plateaus (69% -> 82%), and
-Google's URL API caps around 9 waypoints anyway.
+**The driven route runs roughly 72-82% of the round trip's duration.** Routing
+between waypoints takes straighter, faster paths than the wandering original.
+This is not fixable by adding waypoints — measured at 8/10/12/16/24 waypoints on
+the same loop, recovery is slow and plateaus (69% -> 82%), and Google's URL API
+caps around 9 waypoints anyway.
 
-So the picker is honest about the loop we draw and optimistic about the drive
-you'll actually take. **Unresolved in v1.** Two caveats before anyone "fixes" it
-by scaling the target up:
+**Resolved by making the rerouted path the canonical route.** Rather than
+correcting the number, the app stopped producing the wrong one. A round trip is
+now only a candidate; we downsample it, ask ORS to route through those waypoints,
+and the result of *that* is what we draw, time and hand off. See the two-phase
+LoopScorer flow.
 
-- The proxy above is ORS routing, not Google. Google may behave differently.
-- The cheap way to measure the real number is to open a handoff URL and read
-  Google's own ETA, or just note it on the first real drive. Don't recalibrate
-  the duration table against a proxy.
+Measured after the change: all three picker options land within 4% of target.
+
+Remaining caveat: the reroute is ORS, not Google, so it's a very good proxy
+rather than ground truth. Open a handoff URL and read Google's own ETA, or note
+it on the first real drive.
 
 Both ceilings point the same direction for v2: self-hosted GraphHopper to remove
 the distance cap, and something other than Google handoff for navigation. The

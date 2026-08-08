@@ -23,13 +23,21 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     var minutes: Double { Double(rawValue) }
     var label: String { self == .twoHours ? "2 hr" : "\(rawValue) min" }
 
-    /// Measured medians at the Marlboro origin. 60 and 120 are measured
-    /// directly; 90 is interpolated between measured points at 31km and 47km.
+    /// Sized to hit the target as a **driven** duration, not as a round-trip
+    /// duration. The rerouted path runs 72-82% of the round trip, so the
+    /// candidates have to be correspondingly larger.
+    ///
+    /// 120 is measured directly: an 85km request produced a median driven
+    /// duration of 116 min. 60 and 90 are derived from the measured ratio.
+    /// `LoopScorer` filters on the real driven duration, so table error costs
+    /// candidates, not accuracy.
+    ///
+    /// Do not raise past 100km — ORS rejects it with HTTP 400. Verified.
     var requestMeters: Int {
         switch self {
-        case .sixty:    return 14_000   // -> ~26 km, ~61 min
-        case .ninety:   return 34_000   // -> ~55 km, ~90 min
-        case .twoHours: return 63_000   // -> ~84 km, ~113 min
+        case .sixty:    return 33_000
+        case .ninety:   return 70_000
+        case .twoHours: return 85_000   // -> median 116 min driven
         }
     }
 }
