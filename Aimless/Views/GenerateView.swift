@@ -52,7 +52,7 @@ struct GenerateView: View {
                 .disabled(location.current == nil || model.isGenerating)
             }
             .padding()
-            .navigationTitle("LongWay")
+            .navigationTitle("Aimless")
             .navigationDestination(isPresented: $showResults) {
                 LoopResultsView(loops: model.loops, duration: model.duration)
             }
@@ -69,7 +69,7 @@ struct GenerateView: View {
 
     private var statusMessage: String? {
         if location.isDenied {
-            return "LongWay needs location access to start a loop where you are. Enable it in Settings."
+            return "Aimless needs location access to start a loop where you are. Enable it in Settings."
         }
         if location.current == nil {
             return "Finding you\u{2026}"

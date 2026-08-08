@@ -5,7 +5,7 @@ import Foundation
 ///
 /// We are not writing navigation. There is deliberately no Apple Maps fallback —
 /// Apple exposes no multi-stop routing API, and a single-destination fallback
-/// would navigate the user to where they already are. See longwayspecmvp.md.
+/// would navigate the user to where they already are. See SPEC.md.
 enum Handoff {
     /// Google's URL API accepts around 9 stops. Origin and destination are both
     /// the loop start, leaving room for 8 interior waypoints. Tested at 70km.

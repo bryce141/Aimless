@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct LongWayApp: App {
+struct AimlessApp: App {
     var body: some Scene {
         WindowGroup {
             GenerateView()

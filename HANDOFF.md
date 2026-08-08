@@ -1,6 +1,6 @@
 # Handoff — start of build
 
-Read `longwayspecmvp.md` first. That's the source of truth. This file only
+Read `SPEC.md` first. That's the source of truth. This file only
 records decisions made after the spec was written, and open questions.
 
 ## Environment (already verified)
@@ -18,9 +18,17 @@ records decisions made after the spec was written, and open questions.
   ORS `bearings` may be ignored inside `round_trip`. Cut it. GenerateView is
   duration picker + Generate button only. Revisit after the first real drive,
   when there's evidence about whether loops actually are too suburban.
-- **Project name: TBD.** Spec says "Loop", folder says "LongWay". Recommend
-  LongWay — an app target named `Loop` collides awkwardly with `Loop.swift`,
-  the model type. Bundle ID e.g. `com.brycepercoco.longway`.
+- **Project name: Aimless.** Bundle ID `com.brycepercoco.aimless`. Settled
+  2026-08-07 after two rejected candidates.
+
+  "Loop" collides with `Loop.swift`, the model type. "LongWay" was built under
+  briefly and dropped: it's a generic idiom that collides in App Store search
+  with an existing driving app, "The Long Way". "Loopback" was proposed and
+  withdrawn on discovering three existing apps by that name, including Rogue
+  Amoeba's.
+
+  Aimless is the word the spec itself uses — "for aimless drives with a friend".
+  It describes the product, and an App Store search turned up nothing like it.
 
 ## Proposed change to the spec's LoopScorer — withdrawn
 
@@ -57,7 +65,7 @@ defaults to `points: 5`, both superseded.
 
 ## Existing files here
 
-- `longwayspecmvp.md` — the spec
+- `SPEC.md` — the spec
 - `loopgen_ors.py` — ORS prototype, reads `ORS_KEY` env var
 - `loopgen.py` — earlier GraphHopper attempt, superseded
 - `geojson2gpx.py` — converts loop output to GPX for simulated movement (v2 only)
