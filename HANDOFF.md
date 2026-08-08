@@ -1,4 +1,4 @@
-# Handoff — v1 in App Store review prep, still never driven
+# Handoff — v1 submitted to the App Store, still never driven
 
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
@@ -7,37 +7,52 @@ Last updated 2026-08-08.
 
 ## Where things stand
 
-v1 is **built, redesigned, signed, and uploaded to App Store Connect**. It has
-still never been driven on a real road.
+v1 is **submitted to the App Store and waiting for review** as of 2026-08-08.
+Apple quotes up to 48 hours. It has still never been driven on a real road.
 
 - Public repo: **https://github.com/bryce141/Aimless**
+- Store listing: **Aimless Drives** (`Aimless` was taken). Apple ID 6799342576.
+  The app itself reads **Aimless** on the home screen — `CFBundleDisplayName` is
+  pinned so the two can't drift.
+- Submitted build: **1.0 (3)**. Builds 1 and 2 are superseded and still show
+  "Missing Compliance" in TestFlight; 3 does not, because it declares
+  `ITSAppUsesNonExemptEncryption` in the bundle instead of answering the web
+  form per upload.
 - Routing goes through a **Cloudflare Worker**, not ORS directly. The ORS key is
   a Worker secret and is verifiably absent from the shipping binary.
-- App Store record exists as **Aimless Drives** (`Aimless` was taken). Apple ID
-  6799342576. The app itself still reads **Aimless** on the home screen.
-- **Build 1.0 (2)** archived, signed Apple Distribution, and ready in Xcode's
-  Organizer. Build 1 was uploaded and superseded by the attribution fix.
-- Not yet submitted. Remaining is App Store Connect form-filling, listed below.
+- Not available in the EU, deliberately — see Decisions.
 
 The definition of done in `SPEC.md` is met in the simulator. What remains is
 still physical: put it on a phone and drive one.
 
-## Store submission state
+## If review comes back
 
-Done: PLA accepted, EU removed from availability (avoids the DSA trader
-declaration, which would publish a home address), app record created, name,
-subtitle, keywords, description, privacy policy, screenshots at both 6.5" and
-6.9", signed build uploaded.
+**Approved:** nothing to do; it releases automatically unless a manual release
+was selected.
 
-Left to fill in App Store Connect, all answers in `store/listing.md`:
-Content Rights (yes, rights held via ODbL + attribution), primary category
-Navigation, age rating all-None, copyright `2026 Bryce Percoco`, price Free,
-and selecting build 2.
+**Rejected:** the likely grounds, in order of probability —
+
+1. *Guideline 2.1, app doesn't function.* The most probable failure is a
+   reviewer tapping Generate three times inside a minute and hitting the ORS
+   40/minute limit. The review notes in `store/listing.md` warn about this
+   explicitly; if it happens anyway, reply in Resolution Center pointing at
+   them rather than shipping a new build.
+2. *Location permission.* The app refuses to generate under reduced accuracy by
+   design. A reviewer with Precise Location off sees a blocked button. Also
+   covered in the notes.
+3. *A location surrounded by water returns no loops.* Genuinely no loops exist;
+   not a bug.
+
+Any code fix needs a build number bump — App Store Connect rejects a re-upload
+reusing one it has seen. `CURRENT_PROJECT_VERSION` is at 3.
+
+## Store assets
 
 **Screenshots must match the slot App Store Connect shows**, which was 6.5"
 (1284x2778) on this record despite Apple's docs leading with 6.9". Both sets
 are in `store/screenshots/`. No 6.5"-class simulator exists by default; the
-create command is in `store/listing.md`.
+create command is in `store/listing.md`, along with two traps in regenerating
+them.
 
 ## Environment
 
@@ -78,6 +93,12 @@ files are picked up without editing the project file. iOS 17+, bundle ID
 `com.brycepercoco.aimless`.
 
 ## Decisions
+
+- **Not available in the EU.** The Digital Services Act requires a trader
+  declaration to distribute there, and declaring as an individual publishes a
+  legal name, home address, phone and email on the public product page.
+  Removing the EU costs distribution in markets with no users; declaring would
+  cost a permanently indexed home address. Reversible if it ever matters.
 
 - **Deployment target: iOS 17+.** SwiftUI-native `Map` with `MapPolyline` and
   `MapCameraPosition`. No `UIViewRepresentable` / `MKMapView` bridging.
