@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(brew upgrade:*)",
+      "Bash(claude:*)",
+      "Bash(sudo xcode-select:*)"
+    ]
+  }
+}
