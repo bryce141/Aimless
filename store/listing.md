@@ -199,9 +199,18 @@ NOTES:
 
 ## Screenshots
 
-In `store/screenshots/`. All 1320 × 2868 — the 6.9" iPhone size App Store
-Connect requires. The app is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`), so no
-iPad set is needed.
+Two sets, in `store/screenshots/`. Which one App Store Connect wants depends on
+the slot it shows you — it asked for **6.5"** on this app record, not the 6.9"
+that Apple's docs lead with, so both exist.
+
+| Set | Pixels | Captured on |
+|---|---|---|
+| `6.5-inch/` | 1284 x 2778 | iPhone 14 Plus |
+| `6.9-inch/` | 1320 x 2868 | iPhone 17 Pro Max |
+
+Both captured natively rather than rescaled. The aspect ratios differ slightly
+(0.4622 vs 0.4603), so resizing one into the other would either distort or crop,
+and resampling softens the text in the stat row.
 
 | File | Shows |
 |---|---|
@@ -213,7 +222,7 @@ Captured with a pinned status bar (9:41, full bars, charged) via
 `simctl status_bar override`, and with `-autoGenerate -duration N` to drive the
 app past the first screen — `simctl` has no tap command.
 
-**Two things that will bite whoever regenerates these:**
+**Three things that will bite whoever regenerates these:**
 
 1. **Settle after `terminate` before `launch`.** Without a pause, `simctl`
    returns the still-running process and silently keeps the *previous* run's
@@ -222,3 +231,6 @@ app past the first screen — `simctl` has no tap command.
    retry round doubles it to ~36, and the upstream limit is 40/minute. Back to
    back captures trip it and the screenshot catches the rate-limit message
    instead of a loop.
+3. **Check which size the slot actually wants.** No 6.5"-class simulator exists
+   by default on a current Xcode; create one with
+   `simctl create "Aimless 6.5in" com.apple.CoreSimulator.SimDeviceType.iPhone-14-Plus <runtime>`.
