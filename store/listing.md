@@ -7,19 +7,24 @@ edits stay inside them.
 
 ## Name (30 char limit)
 
-```
-Aimless
-```
+**`Aimless` is taken.** Confirmed 2026-08-08 in App Store Connect: "The app
+name you entered is already being used." It does not appear anywhere in App
+Store search, which is the point — uniqueness is checked against every name
+ever *reserved*, not against what is published. Someone holds a record on it
+and never shipped. Third name this project has lost; the first two at least
+collided with visible apps.
 
-**Check availability first.** This project has already lost two names to
-collisions ("LongWay" clashed with an existing driving app, "Loopback" with
-three apps including Rogue Amoeba's). If `Aimless` is taken, the store name and
-the on-device name can differ — the fallbacks below keep the icon label short
-while satisfying the store:
+Store name and on-device name are independent, so the fallbacks keep the icon
+label short. The app shows **Aimless** on the home screen regardless, via
+`CFBundleName`.
 
-- `Aimless — Drives` (16)
-- `Aimless Loops` (13)
-- `Aimless: Loop Drives` (20)
+- `Aimless — Loop Drives` (21)
+- `Aimless: Backroad Loops` (23)
+- `Aimless Loop Drives` (19)
+- `Aimless Drives` (14)
+
+Whichever is used, trim its extra words out of the keyword list below — the
+name is indexed for search on its own, so repeating them wastes characters.
 
 ## Subtitle (30 char limit)
 
