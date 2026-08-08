@@ -176,3 +176,31 @@ NOTES:
   or actual location used. A suburban or rural location gives better results
   than a dense city center or a location surrounded by water.
 ```
+
+---
+
+## Screenshots
+
+In `store/screenshots/`. All 1320 × 2868 — the 6.9" iPhone size App Store
+Connect requires. The app is iPhone-only (`TARGETED_DEVICE_FAMILY = 1`), so no
+iPad set is needed.
+
+| File | Shows |
+|---|---|
+| `01-pick-how-long.png` | The Generate screen — map, duration slider, button |
+| `02-one-hour-loop.png` | A 58 min / 28 mi / 0% highway loop |
+| `03-two-hour-loop.png` | A 124 min / 63 mi / 0% highway loop |
+
+Captured with a pinned status bar (9:41, full bars, charged) via
+`simctl status_bar override`, and with `-autoGenerate -duration N` to drive the
+app past the first screen — `simctl` has no tap command.
+
+**Two things that will bite whoever regenerates these:**
+
+1. **Settle after `terminate` before `launch`.** Without a pause, `simctl`
+   returns the still-running process and silently keeps the *previous* run's
+   launch arguments, so the screenshot shows the wrong duration with no error.
+2. **Leave 2+ minutes between generates.** One generate is ~18 requests, but a
+   retry round doubles it to ~36, and the upstream limit is 40/minute. Back to
+   back captures trip it and the screenshot catches the rate-limit message
+   instead of a loop.

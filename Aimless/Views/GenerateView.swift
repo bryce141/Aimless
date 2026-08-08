@@ -21,6 +21,16 @@ struct GenerateView: View {
     private var wantsAutoGenerate: Bool {
         ProcessInfo.processInfo.arguments.contains("-autoGenerate")
     }
+
+    /// `-duration 120` preselects a picker option. Store screenshots need to
+    /// show more than whatever the default happens to be, and the slider can't
+    /// be dragged from a script.
+    private var forcedDuration: DurationOption? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-duration"), i + 1 < args.count,
+              let raw = Int(args[i + 1]) else { return nil }
+        return DurationOption(rawValue: raw)
+    }
     #endif
 
     var body: some View {
@@ -58,7 +68,12 @@ struct GenerateView: View {
             .navigationDestination(isPresented: $showResults) {
                 LoopResultsView(loops: model.loops, duration: model.duration)
             }
-            .onAppear { location.start() }
+            .onAppear {
+                location.start()
+                #if DEBUG
+                if let forced = forcedDuration { model.duration = forced }
+                #endif
+            }
             // The fix is taken once. Without this, opening the app in the
             // driveway and generating an hour later somewhere else builds the
             // loop around the driveway.
