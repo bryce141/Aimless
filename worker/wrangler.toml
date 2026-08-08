@@ -1,0 +1,10 @@
+name = "aimless-routing"
+main = "src/index.js"
+compatibility_date = "2026-08-08"
+
+# Secrets are NOT set here — they would end up in the repo. Set them with:
+#   wrangler secret put ORS_API_KEY
+#   wrangler secret put CLIENT_TOKEN    (optional)
+#
+# CLIENT_TOKEN is optional. If unset, the Worker accepts any caller; if set, the
+# app must send a matching X-Aimless-Client header.
