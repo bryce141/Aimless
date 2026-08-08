@@ -1,22 +1,43 @@
-# Handoff — v1 built, not yet driven
+# Handoff — v1 in App Store review prep, still never driven
 
-Read `SPEC.md` first. That's the source of truth, and it's current — every
-measurement and correction below is already folded into it. This file records
-state, decisions, and what's open.
+Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
+App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-07.
+Last updated 2026-08-08.
 
 ## Where things stand
 
-v1 is **built, running, and committed**. It has never been driven.
+v1 is **built, redesigned, signed, and uploaded to App Store Connect**. It has
+still never been driven on a real road.
 
-- Builds clean, runs in the simulator, generates 3 loops at all three durations.
-- Verified against the live API using the real app sources, not a reimplementation.
-- All three picker options land within 4% of the requested duration.
-- Three commits on `main`. **No git remote** — nothing has been pushed anywhere.
+- Public repo: **https://github.com/bryce141/Aimless**
+- Routing goes through a **Cloudflare Worker**, not ORS directly. The ORS key is
+  a Worker secret and is verifiably absent from the shipping binary.
+- App Store record exists as **Aimless Drives** (`Aimless` was taken). Apple ID
+  6799342576. The app itself still reads **Aimless** on the home screen.
+- **Build 1.0 (2)** archived, signed Apple Distribution, and ready in Xcode's
+  Organizer. Build 1 was uploaded and superseded by the attribution fix.
+- Not yet submitted. Remaining is App Store Connect form-filling, listed below.
 
 The definition of done in `SPEC.md` is met in the simulator. What remains is
-physical: put it on a phone and drive one.
+still physical: put it on a phone and drive one.
+
+## Store submission state
+
+Done: PLA accepted, EU removed from availability (avoids the DSA trader
+declaration, which would publish a home address), app record created, name,
+subtitle, keywords, description, privacy policy, screenshots at both 6.5" and
+6.9", signed build uploaded.
+
+Left to fill in App Store Connect, all answers in `store/listing.md`:
+Content Rights (yes, rights held via ODbL + attribution), primary category
+Navigation, age rating all-None, copyright `2026 Bryce Percoco`, price Free,
+and selecting build 2.
+
+**Screenshots must match the slot App Store Connect shows**, which was 6.5"
+(1284x2778) on this record despite Apple's docs leading with 6.9". Both sets
+are in `store/screenshots/`. No 6.5"-class simulator exists by default; the
+create command is in `store/listing.md`.
 
 ## Environment
 
@@ -39,13 +60,17 @@ Developer/Aimless/
   Aimless.xcodeproj
   Aimless/
     AimlessApp.swift
-    Config.swift             <- gitignored, holds the ORS key
+    Config.swift             <- gitignored; holds the Worker client token,
+                                NOT the ORS key any more
     Models/      Loop, RoundTrip, RoadStats, DurationOption
     Services/    RouteService, LoopScorer, Handoff, LocationProvider
     ViewModels/  LoopViewModel
-    Views/       GenerateView, LoopMapView
-  Config.example.swift       <- keyless template, at root so it isn't compiled
-  SPEC.md, HANDOFF.md
+    Views/       GenerateView, LoopMapView, Theme
+  worker/                    <- Cloudflare Worker: ORS proxy
+  store/                     <- listing.md, screenshots/{6.5-inch,6.9-inch}
+  tools/makeicon.swift       <- regenerates the app icon
+  Config.example.swift       <- tokenless template, at root so it isn't compiled
+  README.md, SPEC.md, HANDOFF.md, PRIVACY.md
 ```
 
 Hand-written `.xcodeproj` using Xcode 16+ synchronized folders, so new Swift
@@ -177,25 +202,44 @@ the build across.
 If the phone reports *Untrusted Developer*: Settings → General → VPN & Device
 Management. Usually unnecessary with a paid account.
 
-## Shipping
+## Routing proxy
 
-**TestFlight, not the App Store.** Two blockers make public release a v2 topic:
+The app talks to `aimless-routing.bdrp777.workers.dev`, not to ORS. See
+`worker/README.md`.
 
-- **ORS quota is per-key, not per-user.** 2,000 requests/day and 40/minute are
-  shared across every install. At ~18 requests per generate that's ~111 generates
-  per day *combined*, and two simultaneous users throttle each other. Roughly
-  5 active users breaks it.
-- **The API key ships in the binary** and cannot be hidden. Obfuscation doesn't
-  work — the app must send the real key over the network, so anyone can proxy
-  their own traffic and read it.
+Two reasons, and the second is the one that mattered. The ORS key stops shipping
+in a binary anyone can unpack — verified by grepping the exported binary, which
+contains the Worker URL and no key. And **the routing backend now has an address
+the app owns**: a shipped App Store build has its endpoint frozen into a
+reviewed artifact, so pointing at ORS directly would have made any future move
+to self-hosted routing a new binary, another review, and old installs stranded.
+
+The client token in `Config.swift` is **not** a security boundary and the code
+says so. It ships in the binary like any string. It exists because the endpoint
+is public in a public repo, and it narrows a scraped value to one disposable
+endpoint rather than an ORS account key.
+
+**Status codes pass through the proxy untouched, and this is load-bearing.** The
+client reads 429 as rate limiting worth surfacing and 404/5xx as one dead seed
+to swallow. Flattening them would recreate exactly the ambiguity `RouteService`
+was built to remove.
+
+## Still open on shipping
+
+- **ORS quota is shared across every install.** 2,000/day and 40/minute. One
+  generate is ~18 requests, or ~36 when the retry round fires, so roughly 55-110
+  generates per day *combined*. Fine at current usage — which is one person —
+  and broken at maybe 5 active users.
+- **`SPEC.md` says the ORS free tier is not licensed for production use.** Never
+  chased down against ORS's current terms. If accurate, a public App Store
+  listing on the free tier is not legitimate regardless of user count. **This is
+  the largest unresolved risk in the project.**
 
 Both have the same fix: **self-host the routing.** Self-hosted ORS or GraphHopper
 supports `round_trip` for free (the paid-only restriction is on GraphHopper's
-*hosted* service). The client change is one URL constant; the work is ops — a VPS
-with ~8GB RAM, an OSM extract, a Docker container.
-
-Until then TestFlight covers it: up to 100 internal testers, no App Review for
-internal builds, 90-day builds.
+*hosted* service). Half a day to a full day of ops — a VPS with ~8GB RAM, an OSM
+extract, a Docker container, TLS via Caddy — and thanks to the Worker the client
+change is a server-side URL swap, not an app update.
 
 ## Prototype files kept for reference
 
