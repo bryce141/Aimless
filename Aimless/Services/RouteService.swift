@@ -62,8 +62,14 @@ struct RouteBatch<T> {
 /// Neither knows about the duration picker. The duration-to-request-size table
 /// lives in `DurationOption`, because no formula reliably maps one to the other.
 struct RouteService {
+    /// Our Cloudflare Worker, not ORS directly. Two reasons, and the second is
+    /// the one that matters: the ORS key stops shipping in the binary, and the
+    /// routing backend gets an address we own. A shipped App Store build has its
+    /// endpoint frozen into a reviewed artifact — pointing at ORS directly would
+    /// mean any future move to self-hosted routing needs a new binary, another
+    /// review, and strands everyone who doesn't update. See worker/README.md.
     static let endpoint = URL(string:
-        "https://api.openrouteservice.org/v2/directions/driving-car/geojson")!
+        "https://aimless-routing.bdrp777.workers.dev/v2/directions/driving-car/geojson")!
 
     /// Do not lower this. At `points: 3` the generator produces spiky polygons
     /// with hairpins and backtracking, plus more highway.
@@ -73,7 +79,12 @@ struct RouteService {
     /// server configuration limits". Verified, not assumed.
     static let maxRequestMeters = 100_000
 
-    let apiKey: String
+    /// Identifies this app to our Worker. Explicitly *not* a security boundary —
+    /// it ships in the binary like any other string, so anyone willing to
+    /// unpack an IPA can read it. It exists so that the endpoint being public
+    /// in a public repo isn't itself an invitation, and so a leaked value is a
+    /// disposable string scoped to one endpoint rather than an ORS account key.
+    let clientToken: String
     var session: URLSession = .shared
 
     // MARK: - Candidates
@@ -236,7 +247,7 @@ struct RouteService {
     private func post<Body: Encodable>(body: Body) async throws -> ORSResponse {
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
+        request.setValue(clientToken, forHTTPHeaderField: "X-Aimless-Client")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/geo+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 30

@@ -14,7 +14,7 @@ final class LoopViewModel {
     var isGenerating = false
     var errorMessage: String?
 
-    private let service = RouteService(apiKey: Config.orsAPIKey)
+    private let service = RouteService(clientToken: Config.clientToken)
 
     var hasResults: Bool { !loops.isEmpty }
 
