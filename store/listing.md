@@ -168,9 +168,10 @@ TO TEST:
    not installed.
 
 NOTES:
-- Generation takes 1-2 seconds and issues roughly 18 routing requests.
-- The upstream routing provider rate-limits at 40 requests/minute, so three
-  generates inside one minute will show a "rate limit" message. This is
+- Generation takes 1-2 seconds and issues roughly 18 routing requests, or up to
+  36 when a retry round is needed.
+- The upstream routing provider rate-limits at 40 requests/minute, so two
+  generates in quick succession can show a "rate limit" message. This is
   expected and handled; waiting a minute resolves it.
 - Loops are generated from real road data, so results depend on the simulated
   or actual location used. A suburban or rural location gives better results
