@@ -94,6 +94,16 @@ duplicate.
 The app icon is generated, not drawn — `swift tools/makeicon.swift out.png`
 reproduces it.
 
+## Attribution
+
+Routing comes from [OpenRouteService](https://openrouteservice.org), operated by
+HeiGIT, which derives its road network from
+[OpenStreetMap](https://www.openstreetmap.org/copyright). OSM data is licensed
+under the ODbL, which requires attribution — the app credits both on the results
+screen, where the data is actually displayed.
+
+Base map tiles are Apple's, via MapKit, which renders its own credit.
+
 ## Status
 
 v1 is built and running. Known limitations are documented honestly in

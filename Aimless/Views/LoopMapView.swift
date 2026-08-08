@@ -54,7 +54,7 @@ struct LoopMapView: View {
     @State private var camera: MapCameraPosition = .automatic
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Map(position: $camera) {
                 MapPolyline(coordinates: loop.coordinates)
                     .stroke(Theme.ember, style: StrokeStyle(
@@ -68,6 +68,7 @@ struct LoopMapView: View {
             .onAppear { camera = .rect(Self.boundingRect(for: loop.coordinates)) }
 
             stats
+            attribution
             driveButton
         }
         .padding(.horizontal, 20)
@@ -86,6 +87,21 @@ struct LoopMapView: View {
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
         .cozyCard(radius: 20)
+    }
+
+    /// Required, not decorative. The route geometry comes from OpenRouteService,
+    /// which derives it from OpenStreetMap, and OSM's ODbL licence obliges us to
+    /// credit it. MapKit shows Apple's own credit on the map itself; nothing
+    /// showed this one until it was added.
+    ///
+    /// It lives on this screen because this is the screen where the data is
+    /// displayed — the Generate screen shows only an Apple map.
+    private var attribution: some View {
+        Text("Routing © OpenRouteService · Map data © OpenStreetMap contributors")
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .foregroundStyle(Theme.inkFaint)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var divider: some View {
