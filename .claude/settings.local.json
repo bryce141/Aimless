@@ -3,7 +3,16 @@
     "allow": [
       "Bash(brew upgrade:*)",
       "Bash(claude:*)",
-      "Bash(sudo xcode-select:*)"
+      "Bash(sudo xcode-select:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git branch:*)",
+      "Bash(security find-identity:*)"
     ]
   }
 }
