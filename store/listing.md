@@ -14,24 +14,27 @@ ever *reserved*, not against what is published. Someone holds a record on it
 and never shipped. Third name this project has lost; the first two at least
 collided with visible apps.
 
-Store name and on-device name are independent, so the fallbacks keep the icon
-label short. The app shows **Aimless** on the home screen regardless, via
-`CFBundleName`.
+**Final name: `Aimless Drives`** (14). Saved in App Store Connect 2026-08-08.
 
-- `Aimless — Loop Drives` (21)
-- `Aimless: Backroad Loops` (23)
-- `Aimless Loop Drives` (19)
-- `Aimless Drives` (14)
+Store name and on-device name are independent. The app shows **Aimless** on the
+home screen via `CFBundleDisplayName`, pinned explicitly so renaming the Xcode
+target can't silently rename the app on people's phones.
 
-Whichever is used, trim its extra words out of the keyword list below — the
-name is indexed for search on its own, so repeating them wastes characters.
+Rejected alternatives, kept in case the name ever needs changing again:
+`Aimless — Loop Drives` (21), `Aimless: Backroad Loops` (23),
+`Aimless Loop Drives` (19).
 
 ## Subtitle (30 char limit)
 
 ```
-Circular drives from anywhere
+Back-road loops from anywhere
 ```
-(29)
+(28)
+
+Changed once the name became `Aimless Drives` — the earlier "Circular drives
+from anywhere" spent its words repeating one already in the name. The subtitle
+is indexed, so it should carry terms the name doesn't: back-road, loops,
+anywhere.
 
 ## Promotional text (170 char limit, editable without a new build)
 
@@ -86,12 +89,21 @@ place to be.
 ## Keywords (100 char limit, comma-separated, no spaces after commas)
 
 ```
-drive,driving,road trip,loop,route,scenic,backroad,cruise,joyride,country,roads,detour,wander
+driving,trip,route,scenic,cruise,joyride,country,detour,wander,weekend,explore,nearby,sunday,curvy
 ```
-(93)
+(98)
 
-Deliberately excludes "Aimless" — the app name is already indexed, so spending
-keyword characters on it is waste.
+Excludes every word already carried by the name or subtitle — "aimless",
+"drive"/"drives", "loop"/"loops", "backroad", "anywhere". App Store search
+indexes the name and subtitle on their own, so repeating them here buys
+nothing. The characters freed up went to intent terms a browsing user might
+actually type: weekend, explore, nearby, sunday.
+
+"road trip" became "trip" for the same reason: "road" is already in the
+subtitle, and App Store search forms combinations across the name, subtitle and
+keyword fields — so "trip" alone still matches a search for "road trip" while
+costing five fewer characters. Those went to "curvy", which is what people who
+want this app actually call the roads they're looking for.
 
 ## Category
 
