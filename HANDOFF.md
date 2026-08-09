@@ -200,19 +200,26 @@ only one of them is fixed by waiting, which the old `isDenied` bool couldn't say
   This was assumed during prototyping, never checked, and shaped planning for
   a while. Self-hosting is now an optimisation, not a compliance requirement.
 
-- **Attribution string is wrong and must be fixed in 1.1.** HeiGIT specifies
-  exactly `© openrouteservice by HeiGIT | Data from OpenStreetMap`. The app
-  says `Routing © OpenRouteService · Map data © OpenStreetMap contributors`.
-  Credits both parties, so not worth pulling a live submission for, but it is
-  not the string they ask for. Note this also differs from what secondary
-  sources claimed the string was — the ToS is the only source worth trusting.
+- **Attribution string: fixed in source, not yet shipped.** Now reads
+  `© openrouteservice by HeiGIT | Data from OpenStreetMap`, which is what
+  HeiGIT's terms specify. The shipped 1.0 (3) build still carries the old
+  wording — it credits both parties, so it was not worth pulling a live
+  submission for, but it is not the string they ask for. Goes out with the next
+  build. Note the required string also differs from what secondary sources
+  claim; the ToS is the only source worth trusting.
 
 - **Bursty concurrency is the real licence risk, not who uses the app.** The
   usage limits section lists "sending requests too fast, i.e. too many requests
   per second" alongside daily overuse, with temporary blocking and account
   removal as stated consequences. Every generate fires 12 concurrent requests
-  and then up to 6 more. Harmless at one user; it is the thing most likely to
-  look like abuse at any scale. Throttling the TaskGroup is the fix.
+  and then up to 6 more.
+
+  Deliberately not fixed. Practical exposure at one user is nil, and the fix
+  costs the thing the app is judged on: 12-at-once is ~1s wall clock, capping
+  to 4 makes it three sequential waves at ~3s. If it ever needs doing, do it
+  **in the Worker, not the client** — client-side pacing throttles one phone,
+  so ten phones generating at once still burst, and a server-side fix ships
+  without an App Store review.
 
 - **Route results are CC-BY-SA 4.0.** Fine for display with attribution. The
   share-alike clause would matter if loops were ever exported or shared as

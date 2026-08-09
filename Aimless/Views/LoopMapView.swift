@@ -89,15 +89,18 @@ struct LoopMapView: View {
         .cozyCard(radius: 20)
     }
 
-    /// Required, not decorative. The route geometry comes from OpenRouteService,
-    /// which derives it from OpenStreetMap, and OSM's ODbL licence obliges us to
-    /// credit it. MapKit shows Apple's own credit on the map itself; nothing
-    /// showed this one until it was added.
+    /// Required, not decorative, and the wording is not ours to choose. HeiGIT's
+    /// terms specify this exact string, and OSM's ODbL separately obliges the
+    /// credit. Do not reword it — an earlier version said "Routing ©
+    /// OpenRouteService · Map data © OpenStreetMap contributors", which reads
+    /// fine and credits both parties but is not what they ask for. Secondary
+    /// sources get this wrong too; the terms of service are the only source.
     ///
     /// It lives on this screen because this is the screen where the data is
-    /// displayed — the Generate screen shows only an Apple map.
+    /// displayed — the Generate screen shows only an Apple map, which MapKit
+    /// credits itself.
     private var attribution: some View {
-        Text("Routing © OpenRouteService · Map data © OpenStreetMap contributors")
+        Text("© openrouteservice by HeiGIT | Data from OpenStreetMap")
             .font(.system(size: 10, weight: .medium, design: .rounded))
             .foregroundStyle(Theme.inkFaint)
             .multilineTextAlignment(.center)
