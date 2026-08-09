@@ -152,15 +152,70 @@ Independent confirmation of the attribution string, from the software rather
 than from the terms of service or from secondary sources — which disagreed with
 both. See `example-ors-config.yml`.
 
-## What this does not answer
+## Could this cover the whole US?
 
-- **Coverage.** This box knows New Jersey. The shipped app works anywhere on
-  Earth because HeiGIT hosts the planet. Self-hosting is only viable as a *tier*
-  in front of HeiGIT, not a replacement — route by bounding box, fall back on
-  timeout. North America is a ~14 GB extract needing far more RAM than €7/month
-  buys; the planet is not realistic on any single cheap box.
-- **Sustained load.** Twelve concurrent requests once is not the same as
-  sustained traffic, and nothing here measured a cold JVM under real use.
+Yes, and the reason it's affordable is that **building and serving are separate
+jobs with very different costs.** ORS treats them as separable on purpose:
+`preparation_mode` builds a graph and exits, and `graphs_data_access` decides
+whether serving loads the graph into heap or maps it from disk.
+
+Measured here, same graph, restart only:
+
+| Serving mode | Container memory | Latency after warmup |
+|---|---|---|
+| `RAM_STORE` (default) | 1.12 GB | 12-23 ms |
+| `MMAP` | **573 MB** | 12-44 ms (first request 200 ms) |
+
+Half the memory for no meaningful latency cost, because the OS page cache does
+the work the heap was doing. `MMAP` is set in `ors-config.yml` for that reason.
+
+So the cost of *serving* New Jersey is ~570 MB, while *building* it peaked at
+1.7 GB — 3x more. That gap is what makes national coverage tractable: rent a big
+machine for the hours it takes to build, then serve the result from a small one.
+
+Scaling by extract size, with New Jersey's measurements as the unit:
+
+| | New Jersey | United States |
+|---|---|---|
+| PBF | 0.16 GB | **12.07 GB** (74x) |
+| Graph on disk | 285 MB | ~21 GB (extrapolated) |
+| Build heap | 1.7 GB | ~125 GB (extrapolated) |
+| Build time | 219 s | 4.5 h if linear; likely 2-4x that |
+
+**Treat the right-hand column as arithmetic, not measurement.** Graph size and
+build memory scale roughly with node count, so those extrapolate defensibly.
+Build *time* does not — contraction hierarchy preparation is superlinear, so the
+4.5 h figure is a floor, not an estimate.
+
+Two ways to actually do it:
+
+**One national graph.** Build on a rented high-memory machine, keep the ~21 GB
+result, serve it with `MMAP` from an ordinary box. The build machine is needed
+only for the build and for periodic refreshes, so it's rented by the hour rather
+than owned. This is the simpler architecture and has no border seams.
+
+**Shard by region.** Several instances, each holding a few states, routed by
+bounding box. Every shard builds in minutes on cheap hardware, rebuilds
+independently, and a dead shard degrades to a HeiGIT fallback for that region
+instead of taking everything down. The cost is a real quality problem: **routes
+near an extract's edge get clipped**, because the graph simply ends there. A
+loop generated near a state line would be wrong in a way that is hard to notice.
+Sharding by large multi-state regions rather than by state reduces how often that
+happens without eliminating it.
+
+Neither is expensive in money. Both are ongoing operational work — a stale
+extract is a wrong route, and refreshing means rebuilding.
+
+## What this still does not answer
+
+- **Whether it's worth doing.** Nothing above is a reason to self-host; it only
+  establishes that national coverage is affordable rather than impossible. The
+  app currently has no users and no rate-limit problem in production.
+- **Sustained load.** Twelve concurrent requests once is not sustained traffic,
+  and nothing here measured a cold JVM under real use.
 - **Staleness.** Geofabrik regenerates daily; nothing here refreshes the extract
   or rebuilds on a schedule. That's operational work HeiGIT currently does for
   free.
+- **Edge behaviour.** Every route tested started in interior New Jersey. Nothing
+  here measured what a loop near the Delaware River does when the graph stops at
+  the state line.

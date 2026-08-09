@@ -7,6 +7,9 @@
 ################################################################################
 ors:
   engine:
+    # Serve the graph from disk instead of loading it into heap.
+    graphs_data_access: MMAP
+
     elevation:
       # The default provider ("multi") picks CGIAR at this latitude, and
       # srtm.csi.cgiar.org does not respond at all — connections hang until they
