@@ -407,8 +407,30 @@ Do not build any of that in v1.
 
 ## Other risks
 
-- ORS free tier is not licensed for production use. Fine for personal testing,
-  needs self-hosted GraphHopper or a paid plan before any real users.
-- API key ships in the app binary. Fine for a personal build, not for release.
+- ~~ORS free tier is not licensed for production use.~~ **Wrong. Retracted
+  2026-08-08 after reading HeiGIT's actual Terms of Service.** Nothing in them
+  restricts commercial or production use. Prohibited Conduct covers unlawful
+  purposes, abusive content, IP infringement, overburdening the service and
+  transmitting personal data — not who you are or whether you ship. This was
+  assumed during prototyping and never checked, and it shaped planning for a
+  while. Self-hosting is now an optimisation, not a compliance requirement.
+- ~~API key ships in the app binary.~~ Fixed. Routing goes through a Cloudflare
+  Worker; the key is a Worker secret and is absent from the shipping binary.
+- **Attribution is required and the exact string is specified.** HeiGIT asks
+  for `© openrouteservice by HeiGIT | Data from OpenStreetMap`, displayed in
+  the map image or elsewhere. The app currently says something close but not
+  identical — see HANDOFF.md, fix in 1.1.
+- **Results are licensed CC-BY-SA 4.0.** "Results obtained from
+  openrouteservice in any context are licensed under CC-BY-SA 4.0." Displaying
+  them with attribution is fine; the share-alike clause would bite if loop data
+  were ever redistributed as a dataset. Worth remembering before adding any
+  export or share feature.
+- **Bursty concurrency is explicitly called out as abuse.** The usage limits
+  section lists "sending requests too fast, i.e. too many requests per second"
+  alongside daily overuse, with temporary blocking and account removal as
+  consequences. The generator fires 12 concurrent round-trip requests and then
+  up to 6 verifications — a burst, by design, roughly every generate. It has
+  not caused trouble at one user. It is the design decision most likely to look
+  like abuse at any scale, and it is worth throttling before it matters.
 - Generated loops cluster toward developed suburban corridors rather than
   farmland. See Direction bias.

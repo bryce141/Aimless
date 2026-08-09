@@ -191,32 +191,32 @@ only one of them is fixed by waiting, which the old `isDenied` bool couldn't say
 
 ## Open
 
-- **ORS licensing: still unverified, and the terms page can't be read by a
-  script.** openrouteservice.org/terms-of-service now redirects to
-  account.heigit.org, which is a JavaScript app serving no readable content.
-  Checked 2026-08-08.
+- **ORS licensing: resolved 2026-08-08, and the old claim was wrong.** HeiGIT's
+  Terms of Service place no restriction on commercial or production use.
+  Prohibited Conduct covers unlawful purposes, abusive content, IP
+  infringement, overburdening the service and transmitting personal data —
+  nothing about who you are or whether you ship. `SPEC.md` has been corrected.
 
-  What secondary sources (pricing aggregators, not HeiGIT) say: free tier is
-  2,500/day and 40,000/month with 40 concurrent, and is described as suited to
-  "small personal projects, academic research, or initial development phases of
-  commercial applications" — which implies, without stating, that full
-  commercial deployment expects a paid plan. HeiGIT has also said it can no
-  longer offer free support for commercial interests.
+  This was assumed during prototyping, never checked, and shaped planning for
+  a while. Self-hosting is now an optimisation, not a compliance requirement.
 
-  Note those quota figures disagree with the 2,000/day this spec records. The
-  app doesn't care: it filters on the 429s it actually receives rather than on
-  a documented number.
+- **Attribution string is wrong and must be fixed in 1.1.** HeiGIT specifies
+  exactly `© openrouteservice by HeiGIT | Data from OpenStreetMap`. The app
+  says `Routing © OpenRouteService · Map data © OpenStreetMap contributors`.
+  Credits both parties, so not worth pulling a live submission for, but it is
+  not the string they ask for. Note this also differs from what secondary
+  sources claimed the string was — the ToS is the only source worth trusting.
 
-  **Nothing found either confirms or refutes the claim that the free tier bars
-  production use.** Resolving it needs a human reading the ToS in a browser, or
-  an email to HeiGIT. Self-hosting makes the question moot.
+- **Bursty concurrency is the real licence risk, not who uses the app.** The
+  usage limits section lists "sending requests too fast, i.e. too many requests
+  per second" alongside daily overuse, with temporary blocking and account
+  removal as stated consequences. Every generate fires 12 concurrent requests
+  and then up to 6 more. Harmless at one user; it is the thing most likely to
+  look like abuse at any scale. Throttling the TaskGroup is the fix.
 
-- **Our attribution wording doesn't match what ORS asks for.** They specify
-  `© openrouteservice.org by HeiGIT | Map data © OpenStreetMap contributors`.
-  The app says `Routing © OpenRouteService · Map data © OpenStreetMap
-  contributors` — credits both parties but drops "by HeiGIT" and changes the
-  separator. Fix in 1.1. **Not worth pulling a live submission for**, since the
-  substance of the attribution is present.
+- **Route results are CC-BY-SA 4.0.** Fine for display with attribution. The
+  share-alike clause would matter if loops were ever exported or shared as
+  data, so check before building any share feature.
 
 - **Never been driven.** Everything past this point is guesswork without it.
 - **Request timeout is 30s, unmeasured.** Generous against measured 0.5-1.0s
