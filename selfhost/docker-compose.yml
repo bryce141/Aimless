@@ -1,0 +1,30 @@
+services:
+  ors:
+    image: openrouteservice/openrouteservice:v9.10.0
+    container_name: aimless-ors
+    ports:
+      # 8080 on the host, 8082 inside — the container's own port is not
+      # configurable without also changing server.port in ors-config.yml.
+      - "8080:8082"
+    volumes:
+      - ./data:/home/ors/files
+      - ./graphs:/home/ors/graphs
+      - ./elevation_cache:/home/ors/elevation_cache
+      - ./ors-config.yml:/home/ors/config/ors-config.yml
+      - ./logs:/home/ors/logs
+    environment:
+      ORS_HOME: /home/ors
+      ORS_CONFIG_LOCATION: /home/ors/config/ors-config.yml
+      CONTAINER_LOG_LEVEL: INFO
+      # Set to True to force a graph rebuild. Leave False: with a built graph
+      # present, startup is seconds instead of the full build.
+      REBUILD_GRAPHS: "False"
+      # Heap. The graph build is the memory-hungry phase, not serving.
+      XMS: 2g
+      XMX: 6g
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/ors/v2/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 200
+      start_period: 30s

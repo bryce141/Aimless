@@ -1,0 +1,40 @@
+################################################################################
+### Self-hosted openrouteservice, New Jersey only, driving-car only.
+###
+### Everything not listed here keeps the image defaults. The defaults are in
+### example-ors-config.yml next to this file, extracted from the v9.10.0 image
+### so there's a local record of what we are and aren't overriding.
+################################################################################
+ors:
+  engine:
+    elevation:
+      # The default provider ("multi") picks CGIAR at this latitude, and
+      # srtm.csi.cgiar.org does not respond at all — connections hang until they
+      # time out. GraphHopper wraps that failure as "Could not parse OSM file",
+      # which sends you looking at a perfectly good extract for an hour.
+      #
+      # skadi is the same SRTM data served from AWS S3, and it answers.
+      provider: skadi
+
+    profile_default:
+      build:
+        # Geofabrik's New Jersey extract. See fetch-extract.sh.
+        source_file: /home/ors/files/new-jersey-latest.osm.pbf
+
+    profiles:
+      driving-car:
+        enabled: true
+        build:
+          # WayCategory carries the motorway bit the whole app filters on, so
+          # this storage is load-bearing rather than optional — without it
+          # `waycategory` comes back empty and every loop reads as 0% highway.
+          ext_storages:
+            WayCategory:
+            WaySurfaceType:
+            Tollways:
+        service:
+          # HeiGIT's default is 100000, and that is where
+          # RouteService.maxRequestMeters came from — the ceiling was found by
+          # hitting HTTP 400 against their instance. It is a config value, not a
+          # property of the algorithm, so on our own box it is ours to set.
+          maximum_distance_round_trip_routes: 200000

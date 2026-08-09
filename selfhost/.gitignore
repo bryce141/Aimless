@@ -1,0 +1,9 @@
+# OSM extract: 155 MB, re-fetchable with fetch-extract.sh
+data/
+# Built graph: gigabytes, and a build artifact of data/ + ors-config.yml
+graphs/
+# SRTM tiles fetched during the build
+elevation_cache/
+logs/
+# scratch from timing the build
+.build-start
