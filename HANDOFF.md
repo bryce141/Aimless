@@ -189,6 +189,23 @@ live above the API client.
 `reducedAccuracy`, `failed` and `locating` need different words on screen and
 only one of them is fixed by waiting, which the old `isDenied` bool couldn't say.
 
+## Planned order of work
+
+Decided 2026-08-09, while 1.0 (3) sits in review.
+
+1. **Wait for Apple.** No infrastructure changes while a build is in review.
+2. **If rejected:** fix what they cite, and ship the already-committed
+   attribution correction in the same build. Version numbers depend on the
+   outcome — an approved 1.0 means the next build is 1.0.1, a rejected one means
+   1.0 with a fresh build number. Apple requires the build's version string to
+   match the App Store Connect record, so this cannot be guessed in advance.
+3. **Then move routing to Oracle.** Explicitly for the resume, not because the
+   app needs it: there are no users and no production rate-limit problem. The
+   value is that the self-hosting story currently ends at "on my laptop".
+
+`worker/src/index.js` is already written for step 3 and inert until
+`SELF_HOSTED_ORIGIN` is set.
+
 ## Open
 
 - **ORS licensing: resolved 2026-08-08, and the old claim was wrong.** HeiGIT's
