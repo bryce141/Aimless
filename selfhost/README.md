@@ -173,21 +173,57 @@ So the cost of *serving* New Jersey is ~570 MB, while *building* it peaked at
 1.7 GB — 3x more. That gap is what makes national coverage tractable: rent a big
 machine for the hours it takes to build, then serve the result from a small one.
 
-Scaling by extract size, with New Jersey's measurements as the unit:
+### Build memory barely grows with the extract
 
-| | New Jersey | United States |
+This is the finding that matters, and extrapolation got it badly wrong.
+
+| | New Jersey | NJ + PA + NY + DE |
 |---|---|---|
-| PBF | 0.16 GB | **12.07 GB** (74x) |
-| Graph on disk | 285 MB | ~21 GB (extrapolated) |
-| Build heap | 1.7 GB | ~125 GB (extrapolated) |
-| Build time | 219 s | 4.5 h if linear; likely 2-4x that |
+| PBF | 0.16 GB | 0.98 GB (6x) |
+| Graph on disk | 285 MB | 1.3 GB |
+| **Peak heap** | 1.7 GB | **1.96 GB** |
+| Build time | 219 s | 955 s |
+| Serving memory | 573 MB | 1.12 GB |
 
-**Treat the right-hand column as arithmetic, not measurement.** Graph size and
-build memory scale roughly with node count, so those extrapolate defensibly.
-Build *time* does not — contraction hierarchy preparation is superlinear, so the
-4.5 h figure is a floor, not an estimate.
+A 6x larger extract cost **15% more heap**. Scaling New Jersey's 1.7 GB linearly
+predicted ~10 GB and was wrong by 5x, because `graphs_data_access: MMAP` keeps
+the graph off-heap during the build too — the JVM heap holds working state, not
+the graph, so it stays roughly flat while disk and page cache absorb the growth.
 
-Two ways to actually do it:
+Disk and build time do scale with the extract. Heap does not. Anyone sizing a
+box should budget for the first two and stop worrying about the third.
+
+Extrapolating the whole US from this is still unwise, but the direction is
+clear: the binding constraints are disk (~21 GB of graph) and build hours, not
+RAM.
+
+### New Jersey needs its neighbours
+
+The Geofabrik NJ extract's bounds are the state outline with no buffer, so roads
+stop dead at the state line. Measured against HeiGIT from a NJ-only graph:
+
+| Origin | NJ-only graph | HeiGIT |
+|---|---|---|
+| Marlboro (interior) | 79.1 min | 78.2 min |
+| Lambertville (PA edge) | **error** | 91.9 min |
+| Jersey City (NY edge) | **error** | 109.7 min |
+| Montague (NW corner) | **113.2 min / 47.1 mi** | 139.3 min / 60.1 mi |
+
+The errors are survivable — the app already swallows dead seeds. Montague is
+not: it returned a loop 19% short with no error, because the router worked
+inside a box whose roads ended. Nothing at runtime could detect that.
+
+Merging PA, NY and DE in (`osmium merge`, 977 MB combined) fixes all three —
+every border origin now matches HeiGIT exactly. Cape May still fails on both,
+which is geography rather than coverage: it is a peninsula tip with water on
+three sides.
+
+**A bounding box is the wrong shape for routing decisions here.** New Jersey is
+not a rectangle, and its bbox contains large parts of three other states. With
+the neighbours merged in, that stops mattering — the graph covers everything the
+bbox does.
+
+### Two ways to cover more than one region
 
 **One national graph.** Build on a rented high-memory machine, keep the ~21 GB
 result, serve it with `MMAP` from an ordinary box. The build machine is needed

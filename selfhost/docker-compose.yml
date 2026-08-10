@@ -21,7 +21,7 @@ services:
       REBUILD_GRAPHS: "False"
       # Heap. The graph build is the memory-hungry phase, not serving.
       XMS: 2g
-      XMX: 6g
+      XMX: 4g
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/ors/v2/health"]
       interval: 15s
