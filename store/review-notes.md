@@ -17,6 +17,16 @@ Two things worth knowing before editing this:
   twice produced an over-limit error and twice looked like the field being
   smaller than documented. The field really is 4,000 characters; the block
   below is 3,162.
+- **The reply dialog does not show an attachment until you click Save Draft.**
+  There is no progress bar, no filename, and no error while it uploads, so a
+  successful attach and a failed one look identical. Save the draft, confirm
+  "Message Attachments" lists the file, then Continue Draft and send. Chasing
+  this cost half an hour and three re-encodes of a video that had uploaded fine
+  the first time.
+- **Keep the video small anyway.** ffmpeg at `-vf scale=540:-2 -crf 30` turned a
+  105 MB screen recording into 1.4 MB that is still legible down to the
+  attribution line. `avconvert`, which needs no install, only got to 17 MB
+  because its presets do not expose the encoder.
 - **Resolution Center no longer exists** as a separate area. The reply thread
   now lives behind "View Submission" in the rejection banner on the version
   page, and the Notes field is under **App Review** in the left sidebar.

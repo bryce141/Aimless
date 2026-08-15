@@ -1,4 +1,4 @@
-import CoreLocation
+ import CoreLocation
 import Foundation
 
 /// Builds the Google Maps handoff URL.

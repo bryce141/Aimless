@@ -1,0 +1,19 @@
+Thank you for the feedback.
+
+A screen recording captured on a physical device (iPhone Air, iOS 26.5.2) is
+attached. It shows launching from the home screen, the location request,
+selecting a duration, generating routes, the three resulting loops with
+distance and drive time, and handing off to Google Maps for turn-by-turn
+navigation.
+
+Regarding the location permission prompt: iOS excludes system permission
+dialogs from screen recordings, so the alert itself cannot be captured. It is
+visible in the recording indirectly - at approximately 0:04 the app displays
+"Finding you..." while the system alert is presented, and at approximately
+0:06 the location services arrow appears in the status bar as access is
+granted and the map centers on the user. Location is the only permission the
+app requests. If you would prefer, we can provide footage of the device filmed
+externally.
+
+Answers to items 2 through 7 have been added to the Notes field in App Review
+Information.
