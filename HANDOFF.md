@@ -38,12 +38,43 @@ working that out.
 Version numbers cannot be chosen in advance: Apple requires the build's version
 string to match the App Store Connect record, so the outcome decides it.
 
-3. **Then move routing to Oracle.** Explicitly for the resume, not because the
-   app needs it — there are no users and no production rate-limit problem. The
-   value is that the self-hosting story currently ends at "on my laptop".
-   `worker/src/index.js` is already written for this and inert until
-   `SELF_HOSTED_ORIGIN` is set. Oracle's always-free tier is 2 OCPU / 12 GB
-   since 2026-06-15; serving the four-state graph measured 1.12 GB.
+Pushing a new build later is safe. A live app stays live while a new version is
+in review; users keep downloading the current one, and the new version only
+replaces it on approval. There is no window where the app disappears.
+
+## Next up: move routing to Oracle
+
+Decided 2026-08-18. **This does not need Apple and does not touch the binary
+under review**, which is the entire reason the Cloudflare Worker exists — the
+app points at an address we own, so changing where routing happens is a
+server-side deploy rather than a release cycle. Do it while review is pending.
+
+The goal is capacity, not features. The ceiling today is ORS's 40 requests per
+minute against ~18 per generate, which is **roughly two generates per minute
+across all users combined**, no matter how many people install the app. Moving
+regional traffic to our own instance removes that ceiling for the region.
+
+Steps:
+
+1. Oracle Cloud always-free instance. **2 OCPU / 12 GB** since 2026-06-15, down
+   from 4/24 — verify current terms before sizing anything. Expect provisioning
+   friction: free ARM capacity is often unavailable and can take several
+   attempts over days.
+2. Copy `selfhost/` up, run `fetch-extract.sh`, then `docker compose up -d`.
+   Building the four-state graph took 955 s and peaked at 1.96 GB heap locally;
+   serving it needs 1.12 GB. Both fit the free tier with room.
+3. Set `SELF_HOSTED_ORIGIN` on the Worker and deploy. The routing and fallback
+   logic is already written and tested — see `worker/src/index.js`.
+
+**Coverage is the limit, and it is a real one.** The graph holds NJ, PA, NY and
+DE. A user outside that area still goes to HeiGIT and still shares the same
+ceiling, so this scales one region rather than the app. National coverage is a
+separate and much larger problem — the US extract is 12 GB, and the binding
+constraints there are disk and build hours, not RAM. See `selfhost/README.md`.
+
+**Open question, not yet answered:** whether "v2" also means a paid Pro tier.
+If it does, that is unrelated work — StoreKit, subscriptions, and a real App
+Review surface — and should be planned separately from this.
 
 ## Store assets
 
