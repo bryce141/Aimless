@@ -93,7 +93,13 @@ while true; do
       --wait-for-state RUNNING 2>&1)
 
     if [[ $? -eq 0 ]]; then
-      ID=$(echo "$OUT" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["id"])' 2>/dev/null)
+      # Look the instance back up by name rather than parsing $OUT. With
+      # --wait-for-state the CLI prints human-readable progress lines ahead of
+      # the JSON, so json.load chokes and the ID comes back empty — which reads
+      # as "launch failed" at exactly the moment it succeeded.
+      ID=$(oci compute instance list --compartment-id "$COMPARTMENT" \
+           --query "data[?\"display-name\"=='$NAME' && \"lifecycle-state\"=='RUNNING'] | [0].id" \
+           --raw-output 2>/dev/null)
       echo "GOT ONE"
       echo
       IP=$(oci compute instance list-vnics --instance-id "$ID" \

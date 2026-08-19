@@ -12,7 +12,8 @@
       "Bash(git show:*)",
       "Bash(git ls-files:*)",
       "Bash(git branch:*)",
-      "Bash(security find-identity:*)"
+      "Bash(security find-identity:*)",
+      "Bash(oci:*)"
     ]
   }
 }
