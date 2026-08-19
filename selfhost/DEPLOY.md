@@ -37,9 +37,18 @@ unavailable and the request can take several attempts across days.
   on 2026-06-15, from 4/24. The monthly allowance is 1,500 OCPU-hours and 9,000
   GB-hours, so one instance at 2/12 running continuously costs 1,460 and 8,760 —
   it fits, with no room for a second instance.
-- **Region: US East (Ashburn).** A few milliseconds from New Jersey. The home
-  region is chosen at signup and **cannot be changed afterwards**, so get it
-  right the first time.
+- **Region: US East (Ashburn), with a caveat.** It is a few milliseconds from
+  New Jersey and has three availability domains, which helps — but it is also
+  one of the highest-demand regions for free ARM capacity, where "out of host
+  capacity" routinely persists for days. The home region is chosen at signup and
+  **cannot be changed afterwards.**
+
+  If Ashburn will not provision, take a different region rather than waiting
+  indefinitely. **The win here is the rate limit, not the latency.** Removing a
+  40-request/minute vendor quota is worth far more than the tens of milliseconds
+  a distant region costs, and even Frankfurt — which provisions in minutes —
+  would answer in roughly 150-230 ms against HeiGIT's measured 430-970 ms.
+  HeiGIT is slow because of load and queueing, not distance.
 - **Image: Ubuntu 22.04 or 24.04 (aarch64).** The ORS image is multi-arch;
   `v9.10.0` publishes both `amd64` and `arm64`, so Ampere is fine.
 - **Boot volume: 50 GB minimum.** Budget ~6 GB for our data (1 GB extract,
@@ -48,6 +57,12 @@ unavailable and the request can take several attempts across days.
 
 If capacity is unavailable, retry — including in a different availability
 domain. This is the well-known free-tier lottery, not a misconfiguration.
+
+**Upgrading to Pay As You Go is the reliable escape hatch**, and Always Free
+resources stay free on a PAYG account — Oracle simply prioritises paying
+tenancies for capacity. The risk is that a PAYG account will happily bill for
+anything provisioned beyond the free shapes, so set a budget alert first if you
+go this route.
 
 **Idle reclamation is a real risk.** Oracle may reclaim Always Free compute that
 stays under ~20% utilisation across 7 days. A routing box for an app with no
