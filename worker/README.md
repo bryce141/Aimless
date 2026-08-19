@@ -41,3 +41,48 @@ dead seed to swallow silently. Collapsing them into a generic error would make a
 throttled round look identical to a round where no loop matched — the exact
 confusion `RouteService` is built to avoid. Response bodies pass through too,
 since ORS puts a readable message in `error.message`.
+
+## Self-hosted routing
+
+`SELF_HOSTED_ORIGIN` points at our own ORS instance. When it is set, requests
+whose origin falls inside the New Jersey bounding box are tried there first and
+fall back to HeiGIT on any non-200, timeout or dead socket. Unset, everything
+goes to HeiGIT — which is why this deploys safely before a server exists.
+
+```
+wrangler secret put SELF_HOSTED_ORIGIN
+```
+
+**The value must end in `/ors`, and getting this wrong is silent.** The Worker
+appends `/v2/directions/driving-car/geojson`, while ORS serves that path under
+`/ors`. So:
+
+```
+https://ors.example.com/ors        <- correct
+https://ors.example.com            <- 404s on every request, forever
+```
+
+A wrong origin does not look broken. Every self-hosted attempt 404s, `trySelfHosted`
+returns null exactly as designed, and HeiGIT answers instead — so the app keeps
+working, at HeiGIT's latency and under HeiGIT's rate limit, which is the precise
+thing the instance was stood up to escape.
+
+**Check the response header rather than assuming.** `X-Aimless-Served-By` is
+`self` or `heigit` on every response:
+
+```
+curl -sD- -o/dev/null -X POST \
+  https://aimless-routing.bdrp777.workers.dev/v2/directions/driving-car/geojson \
+  -H 'Content-Type: application/json' \
+  -H 'X-Aimless-Client: <token>' \
+  -d '{"coordinates":[[-74.246,40.315]],"options":{"round_trip":{"length":33000,"points":8,"seed":1}}}' \
+  | grep -i served-by
+```
+
+An origin in Marlboro NJ should come back `self`. If it says `heigit`, the
+instance is not being used — check the `/ors` suffix first.
+
+The timeout is 1000 ms (`SELF_HOSTED_TIMEOUT_MS`), against 55-140 ms measured
+locally. It is sized to catch a box that is wedged or reclaimed, not one that is
+briefly busy. Note the first request after a restart is slower — `MMAP` serves
+the graph from disk, so the page cache starts cold and one request paid 200 ms.
