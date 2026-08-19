@@ -116,6 +116,62 @@ Raised it to 200 km here and re-tested (restart only, no rebuild):
 So a 3-hour duration option is possible self-hosted and simply is not on the
 public instance. That's a product capability, not just an optimisation.
 
+## Measured on Oracle, 2026-08-19
+
+Deployed to an Oracle Cloud always-free instance: `VM.Standard.A1.Flex`,
+2 OCPU / 12 GB Ampere, Ubuntu 24.04 aarch64, US East (Ashburn) AD-2.
+`DEPLOY.md` is the runbook.
+
+| | M-series, 6 cores | **Ampere, 2 cores** |
+|---|---|---|
+| Extract | 0.98 GB | 0.98 GB |
+| Graph build | 955 s | **1742 s** |
+| Graph on disk | 1.3 GB | 1.3 GB |
+| Single request | 12-44 ms | **38-80 ms** |
+| 12 concurrent | 0.11 s | **0.73 s** |
+
+**Build time scaled with cores rather than collapsing** — 1.8x longer on a third
+the cores, because much of the graph build is single-threaded. Half an hour
+unattended, which is nothing.
+
+**Read the container's memory figure carefully.** `docker stats` reports 6.1 GB,
+which looks alarming on a 12 GB box until you check the host: 2.8 GB actually
+used, 7.7 GB in page cache, 8.8 GB available. That is `MMAP` working exactly as
+intended — the graph lives in reclaimable page cache, not in the heap. Sizing a
+box on the `docker stats` number would triple the requirement for no reason.
+
+**The 12-concurrent figure is the one that matters, and it is the honest one.**
+A generate is ~18 requests, so 0.73 s for 12 puts a full generate near 1.1 s and
+sustained throughput around 16 requests/second — call it **50 generates per
+minute against HeiGIT's 2**. That is the entire point of the exercise. Note it
+is throughput, not latency, that was bought: a single request got faster, but
+under a real burst two Ampere cores queue where six M-series cores did not.
+
+### Parity against HeiGIT, eight seeds
+
+Same origin (Marlboro NJ), same 33 km request, run simultaneously:
+
+| Seed | Duration delta | Highway share |
+|---|---|---|
+| 1, 2, 4, 8 | <1% | 0.0 vs 0.0 |
+| 3 | 0.9% | **27.5 vs 27.7** |
+| 5 | 0.6% | 9.2 vs 9.2 |
+| 6 | 0.1% | 3.2 vs 3.2 |
+| 7 | 0.6% | 26.0 vs 25.5 |
+
+Within ~1% on duration and 0.6 points on highway share across all eight. Safe to
+swap.
+
+**One trap worth writing down, because it cost a false alarm.** A first pass at
+this comparison matched `waycategory == 1` for motorway and reported seed 3 as
+9.0% locally against 27.7% from HeiGIT — a scary-looking regression in the exact
+signal the app filters on. The bug was in the comparison, not the graph.
+**`waycategory` is a bitmask**, and a tolled motorway comes back as `1|16 = 17`,
+which an equality test silently drops. In New Jersey that is most of the highway
+network. `RouteService.roadStats` has always done this correctly (`value &
+highwayBit != 0`); only the throwaway test script was wrong. Any future
+comparison must mask, not compare.
+
 ## Gotcha worth its own section: elevation
 
 The first build failed after 37 seconds with:

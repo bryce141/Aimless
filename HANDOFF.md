@@ -90,39 +90,67 @@ The 30-60/min for Oracle is the only number here nobody has measured. HeiGIT's
 40/min, Cloudflare's 100k/day and the ~18 per generate are all documented or
 counted.
 
-## Next up: move routing to Oracle
+## Oracle routing: deployed, not yet switched on
 
-Decided 2026-08-18. **This does not need Apple and does not touch the binary
-under review**, which is the entire reason the Cloudflare Worker exists — the
-app points at an address we own, so changing where routing happens is a
-server-side deploy rather than a release cycle. Do it while review is pending.
+Built 2026-08-19. **The box exists, serves correct routes, and is not yet
+carrying any traffic** — the Worker still sends everything to HeiGIT because
+`SELF_HOSTED_ORIGIN` is unset. That is the safe order: prove the backend, then
+flip one secret.
 
-The goal is capacity, not features. The ceiling today is ORS's 40 requests per
-minute against ~18 per generate, which is **roughly two generates per minute
-across all users combined**, no matter how many people install the app. Moving
-regional traffic to our own instance removes that ceiling for the region.
+| | |
+|---|---|
+| Instance | `aimless-ors`, Oracle always-free |
+| Shape | VM.Standard.A1.Flex, 2 OCPU / 12 GB, Ampere |
+| OS | Ubuntu 24.04 aarch64 |
+| Region | US East (Ashburn), AD-2 |
+| Public IP | 129.213.20.151 |
+| SSH | `ssh -i ~/.ssh/aimless_oracle ubuntu@129.213.20.151` |
 
-Steps:
+Graph built in 1742 s, 1.3 GB on disk. Verified against HeiGIT on eight seeds:
+within ~1% on duration and 0.6 points on highway share. Full numbers and the
+build runbook are in `selfhost/README.md` and `selfhost/DEPLOY.md`.
 
-1. Oracle Cloud always-free instance. **2 OCPU / 12 GB** since 2026-06-15, down
-   from 4/24 — verify current terms before sizing anything. Expect provisioning
-   friction: free ARM capacity is often unavailable and can take several
-   attempts over days.
-2. Copy `selfhost/` up, run `fetch-extract.sh`, then `docker compose up -d`.
-   Building the four-state graph took 955 s and peaked at 1.96 GB heap locally;
-   serving it needs 1.12 GB. Both fit the free tier with room.
-3. Set `SELF_HOSTED_ORIGIN` on the Worker and deploy. The routing and fallback
-   logic is already written and tested — see `worker/src/index.js`.
+**What it bought is throughput, not latency.** Twelve concurrent requests finish
+in 0.73 s, so a generate lands near 1.1 s and sustained throughput is roughly
+**50 generates per minute against HeiGIT's 2**. A single request also got faster
+(38-80 ms against 430-970 ms), but under a real burst two Ampere cores queue.
 
-**Coverage is the limit, and it is a real one.** The graph holds NJ, PA, NY and
-DE. A user outside that area still goes to HeiGIT and still shares the same
-ceiling, so this scales one region rather than the app. National coverage is a
-separate and much larger problem — the US extract is 12 GB, and the binding
-constraints there are disk and build hours, not RAM. See `selfhost/README.md`.
+### What is left
+
+1. **Cloudflare Tunnel — blocked on owning a domain.** Named tunnels require a
+   zone in the Cloudflare account; quick tunnels are ephemeral and not for
+   production. Roughly $10/year at Cloudflare Registrar if there isn't one.
+2. **Cloudflare Access with a service token** in front of the tunnel hostname,
+   with the Worker sending `CF-Access-Client-Id` / `CF-Access-Client-Secret`.
+   Without it the hostname is open routing for anyone who finds it — the same
+   problem we are leaving HeiGIT to avoid, except on a box we pay for.
+3. **Set `SELF_HOSTED_ORIGIN`** to `https://ors.<domain>/ors` and deploy. **The
+   `/ors` suffix is mandatory and omitting it fails silently** — see
+   `worker/README.md`. Verify with the `X-Aimless-Served-By` response header,
+   which must read `self` for a New Jersey origin.
+
+Rollback is `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy. No app
+change, no review.
+
+### Watch for
+
+**Oracle reclaims idle always-free compute** — under ~20% utilisation across 7
+days. A routing box for an app with no users is exactly that profile. The Worker
+degrades to HeiGIT on a dead socket, so the failure mode is "slower", not
+"broken", but nothing currently notices or alerts.
+
+`tools/oracle-retry.sh` rebuilds the instance if it is ever reclaimed; it
+rotates availability domains until free ARM capacity appears. Capacity in
+Ashburn was refused on AD-1 and granted on AD-2 on the first attempt.
+
+**Coverage is still the limit.** The graph holds NJ, PA, NY and DE, and the
+Worker only routes *New Jersey* origins locally — deliberately, since a route
+generated near a graph edge gets silently clipped. Everyone else still goes to
+HeiGIT and still shares its ceiling. This scales one region, not the app.
 
 **Open question, not yet answered:** whether "v2" also means a paid Pro tier.
-If it does, that is unrelated work — StoreKit, subscriptions, and a real App
-Review surface — and should be planned separately from this.
+Unrelated work — StoreKit, subscriptions, a real App Review surface — and should
+be planned separately.
 
 ## Store assets
 
