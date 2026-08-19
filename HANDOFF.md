@@ -1,50 +1,49 @@
-# Handoff — v1 submitted to the App Store, still never driven
+# Handoff — v1 with App Review, runs on a phone, still never driven
 
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-08.
+Last updated 2026-08-18.
 
-## Where things stand
+## Where this stands
 
-v1 is **submitted to the App Store and waiting for review** as of 2026-08-08.
-Apple quotes up to 48 hours. It has still never been driven on a real road.
+**1.0 (3) is back with App Review as of 2026-08-14.** No code change was
+involved and none is pending.
 
-- Public repo: **https://github.com/bryce141/Aimless**
-- Store listing: **Aimless Drives** (`Aimless` was taken). Apple ID 6799342576.
-  The app itself reads **Aimless** on the home screen — `CFBundleDisplayName` is
-  pinned so the two can't drift.
-- Submitted build: **1.0 (3)**. Builds 1 and 2 are superseded and still show
-  "Missing Compliance" in TestFlight; 3 does not, because it declares
-  `ITSAppUsesNonExemptEncryption` in the bundle instead of answering the web
-  form per upload.
-- Routing goes through a **Cloudflare Worker**, not ORS directly. The ORS key is
-  a Worker secret and is verifiably absent from the shipping binary.
-- Not available in the EU, deliberately — see Decisions.
+Apple rejected under **Guideline 2.1, Information Needed** — not a bug, not a
+crash, nothing wrong with the app. The reviewer wanted documentation the
+submission never carried, in seven numbered items, plus a screen recording made
+on a physical device. Answers to items 2-7 live in `store/review-notes.md`, and
+are now in both the App Review Information Notes field and the reply itself.
 
-The definition of done in `SPEC.md` is met in the simulator. What remains is
-still physical: put it on a phone and drive one.
+That rejection forced the device test that was deliberately skipped before
+submitting, and the app passed it: location permission, generation, and the
+Google Maps handoff all work on an iPhone Air running iOS 26.5.2. "Drive This"
+opens Google Maps in live turn-by-turn navigation on the generated route.
 
-## If review comes back
+One thing worth carrying forward: **iOS does not capture system permission
+dialogs in screen recordings**, so the location alert cannot be filmed that way.
+It is visible indirectly — the app sits on "Finding you..." while the alert is
+up, and the status-bar location arrow appears the moment access is granted. The
+reply points the reviewer at both. Two recordings were thrown away before
+working that out.
 
-**Approved:** nothing to do; it releases automatically unless a manual release
-was selected.
+## What happens when Apple replies
 
-**Rejected:** the likely grounds, in order of probability —
+1. **Approved** — next build is 1.0.1 with a fresh build number, carrying the
+   attribution fix.
+2. **Rejected again** — fix what they cite, and the attribution fix rides along
+   in 1.0 with build 4.
 
-1. *Guideline 2.1, app doesn't function.* The most probable failure is a
-   reviewer tapping Generate three times inside a minute and hitting the ORS
-   40/minute limit. The review notes in `store/listing.md` warn about this
-   explicitly; if it happens anyway, reply in Resolution Center pointing at
-   them rather than shipping a new build.
-2. *Location permission.* The app refuses to generate under reduced accuracy by
-   design. A reviewer with Precise Location off sees a blocked button. Also
-   covered in the notes.
-3. *A location surrounded by water returns no loops.* Genuinely no loops exist;
-   not a bug.
+Version numbers cannot be chosen in advance: Apple requires the build's version
+string to match the App Store Connect record, so the outcome decides it.
 
-Any code fix needs a build number bump — App Store Connect rejects a re-upload
-reusing one it has seen. `CURRENT_PROJECT_VERSION` is at 3.
+3. **Then move routing to Oracle.** Explicitly for the resume, not because the
+   app needs it — there are no users and no production rate-limit problem. The
+   value is that the self-hosting story currently ends at "on my laptop".
+   `worker/src/index.js` is already written for this and inert until
+   `SELF_HOSTED_ORIGIN` is set. Oracle's always-free tier is 2 OCPU / 12 GB
+   since 2026-06-15; serving the four-state graph measured 1.12 GB.
 
 ## Store assets
 
@@ -189,46 +188,6 @@ live above the API client.
 `reducedAccuracy`, `failed` and `locating` need different words on screen and
 only one of them is fixed by waiting, which the old `isDenied` bool couldn't say.
 
-## Where this stands
-
-**1.0 (3) is back with App Review as of 2026-08-14.** No code change was
-involved and none is pending.
-
-Apple rejected under **Guideline 2.1, Information Needed** — not a bug, not a
-crash, nothing wrong with the app. The reviewer wanted documentation the
-submission never carried, in seven numbered items, plus a screen recording made
-on a physical device. Answers to items 2-7 live in `store/review-notes.md`, and
-are now in both the App Review Information Notes field and the reply itself.
-
-That rejection forced the device test that was deliberately skipped before
-submitting, and the app passed it: location permission, generation, and the
-Google Maps handoff all work on an iPhone Air running iOS 26.5.2. "Drive This"
-opens Google Maps in live turn-by-turn navigation on the generated route.
-
-One thing worth carrying forward: **iOS does not capture system permission
-dialogs in screen recordings**, so the location alert cannot be filmed that way.
-It is visible indirectly — the app sits on "Finding you..." while the alert is
-up, and the status-bar location arrow appears the moment access is granted. The
-reply points the reviewer at both. Two recordings were thrown away before
-working that out.
-
-## What happens when Apple replies
-
-1. **Approved** — next build is 1.0.1 with a fresh build number, carrying the
-   attribution fix.
-2. **Rejected again** — fix what they cite, and the attribution fix rides along
-   in 1.0 with build 4.
-
-Version numbers cannot be chosen in advance: Apple requires the build's version
-string to match the App Store Connect record, so the outcome decides it.
-
-3. **Then move routing to Oracle.** Explicitly for the resume, not because the
-   app needs it — there are no users and no production rate-limit problem. The
-   value is that the self-hosting story currently ends at "on my laptop".
-   `worker/src/index.js` is already written for this and inert until
-   `SELF_HOSTED_ORIGIN` is set. Oracle's always-free tier is 2 OCPU / 12 GB
-   since 2026-06-15; serving the four-state graph measured 1.12 GB.
-
 ## Open
 
 - **ORS licensing: resolved 2026-08-08, and the old claim was wrong.** HeiGIT's
@@ -321,20 +280,46 @@ was built to remove.
 
 ## Still open on shipping
 
-- **ORS quota is shared across every install.** 2,000/day and 40/minute. One
-  generate is ~18 requests, or ~36 when the retry round fires, so roughly 55-110
-  generates per day *combined*. Fine at current usage — which is one person —
-  and broken at maybe 5 active users.
-- **`SPEC.md` says the ORS free tier is not licensed for production use.** Never
-  chased down against ORS's current terms. If accurate, a public App Store
-  listing on the free tier is not legitimate regardless of user count. **This is
-  the largest unresolved risk in the project.**
+- **ORS quota is shared across every install.** 40 requests/minute, and one
+  generate is ~18 (up to ~36 with a retry round). That works out to roughly
+  **two generates per minute across all users combined**, which is the real
+  ceiling — not the daily quota. Fine at one user; it starts hurting somewhere
+  around a hundred active ones, and it hurts on weekend mornings specifically,
+  which is the whole use case.
 
-Both have the same fix: **self-host the routing.** Self-hosted ORS or GraphHopper
-supports `round_trip` for free (the paid-only restriction is on GraphHopper's
-*hosted* service). Half a day to a full day of ops — a VPS with ~8GB RAM, an OSM
-extract, a Docker container, TLS via Caddy — and thanks to the Worker the client
-change is a server-side URL swap, not an app update.
+- ~~The ORS free tier is not licensed for production use.~~ **Retracted
+  2026-08-08.** HeiGIT's terms place no restriction on commercial or production
+  use. This was assumed during prototyping, never checked, and wrongly shaped
+  planning for weeks — it is why self-hosting kept getting framed as a
+  compliance requirement. It is an optimisation, nothing more.
+
+The quota ceiling is real but not urgent, and **self-hosting is now measured
+rather than theorised** — see `selfhost/README.md`. Summary of what it costs:
+
+| | |
+|---|---|
+| Extract (NJ + PA + NY + DE) | 0.98 GB |
+| Graph build | 955 s, **1.96 GB peak heap** |
+| Serving with MMAP | **1.12 GB** |
+| Latency | 55-140 ms, against 430-970 ms hosted |
+| 12-request burst | 0.28 s, no rate limit |
+
+Two findings worth keeping:
+
+- **Build memory barely grows with the extract.** Six times the map cost 15%
+  more heap, not six times. `graphs_data_access: MMAP` keeps the graph off-heap
+  during the build as well as during serving, so disk and build time scale and
+  RAM does not. Linear extrapolation predicted ~10 GB and was wrong by 5x. This
+  is what puts it inside a free tier.
+- **The neighbouring states are not optional.** A New Jersey-only graph ends at
+  the state line: Jersey City and Lambertville failed outright, and the
+  north-west corner silently returned a loop **19% short with no error**, which
+  nothing at runtime could have detected.
+
+`worker/src/index.js` already routes New Jersey traffic to a self-hosted
+instance and falls back to HeiGIT on any non-200, timeout or dead socket. It is
+inert until `SELF_HOSTED_ORIGIN` is set, so it deploys safely before a server
+exists.
 
 ## Prototype files kept for reference
 
