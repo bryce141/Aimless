@@ -42,6 +42,54 @@ Pushing a new build later is safe. A live app stays live while a new version is
 in review; users keep downloading the current one, and the new version only
 replaces it on approval. There is no window where the app disappears.
 
+## Who this is for
+
+**Bryce is an IT engineer, not a software engineer.** Infrastructure vocabulary
+lands — reverse proxy, VM, vendor quota, firewall, connector. Software and cloud
+platform vocabulary does not, and assuming it has cost two rounds of
+back-and-forth already.
+
+Three rules that came out of it:
+
+- **Name the product and say what it is**, the first time it appears in a reply.
+  "The Cloudflare Worker" means nothing on its own; "the Cloudflare Worker, a
+  reverse proxy Cloudflare hosts for us" does.
+- **Never let a plan step secretly mean "do nothing".** "Stay on the free plan"
+  was read as a product to go acquire, because it was written in a list of
+  actions. If the answer is no action, write *no action needed*.
+- **Keep the units straight.** A per-minute limit and a per-day limit in the same
+  table, without labels, is unreadable. That one confused an entire exchange.
+
+## The two ceilings, in plain terms
+
+Worth keeping because it gets re-derived every time. **There are two separate
+limits, in different units, and they have nothing to do with each other.**
+
+| | What it is | Limit | Fixed by |
+|---|---|---|---|
+| Cloudflare Worker | Our reverse proxy, hosted by Cloudflare | 100k requests/day = **~5,500 generates/day** | $5/month |
+| Routing backend | Whoever computes the routes | HeiGIT: 40 req/min = **~2 generates/min** | Oracle box |
+
+One generate costs ~18 requests, which is where both conversions come from.
+
+Whichever number is tighter is the one that actually stops you. Today that is
+HeiGIT's 2/minute — the daily cap is unreachable behind it. Stand up the Oracle
+box and the per-minute ceiling goes to roughly 30-60/min, at which point the
+5,500/day becomes the binding one.
+
+In users: **roughly 100 today, roughly 2,500 with Oracle.** A hundred people
+generating twice on a Saturday morning is 3.3/minute against a ceiling of 2 —
+errors during the exact hour the app exists for. 2,500 people generating twice
+is 5,000/day, just under the Worker cap.
+
+**Paying Cloudflare $5 without the Oracle box buys nothing** — it lifts a limit
+we are nowhere near. The Worker already exists and is already free; it needs no
+action beyond one setting change when the box is ready.
+
+The 30-60/min for Oracle is the only number here nobody has measured. HeiGIT's
+40/min, Cloudflare's 100k/day and the ~18 per generate are all documented or
+counted.
+
 ## Next up: move routing to Oracle
 
 Decided 2026-08-18. **This does not need Apple and does not touch the binary
