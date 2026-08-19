@@ -189,22 +189,45 @@ live above the API client.
 `reducedAccuracy`, `failed` and `locating` need different words on screen and
 only one of them is fixed by waiting, which the old `isDenied` bool couldn't say.
 
-## Planned order of work
+## Where this stands
 
-Decided 2026-08-09, while 1.0 (3) sits in review.
+**1.0 (3) is back with App Review as of 2026-08-14.** No code change was
+involved and none is pending.
 
-1. **Wait for Apple.** No infrastructure changes while a build is in review.
-2. **If rejected:** fix what they cite, and ship the already-committed
-   attribution correction in the same build. Version numbers depend on the
-   outcome — an approved 1.0 means the next build is 1.0.1, a rejected one means
-   1.0 with a fresh build number. Apple requires the build's version string to
-   match the App Store Connect record, so this cannot be guessed in advance.
+Apple rejected under **Guideline 2.1, Information Needed** — not a bug, not a
+crash, nothing wrong with the app. The reviewer wanted documentation the
+submission never carried, in seven numbered items, plus a screen recording made
+on a physical device. Answers to items 2-7 live in `store/review-notes.md`, and
+are now in both the App Review Information Notes field and the reply itself.
+
+That rejection forced the device test that was deliberately skipped before
+submitting, and the app passed it: location permission, generation, and the
+Google Maps handoff all work on an iPhone Air running iOS 26.5.2. "Drive This"
+opens Google Maps in live turn-by-turn navigation on the generated route.
+
+One thing worth carrying forward: **iOS does not capture system permission
+dialogs in screen recordings**, so the location alert cannot be filmed that way.
+It is visible indirectly — the app sits on "Finding you..." while the alert is
+up, and the status-bar location arrow appears the moment access is granted. The
+reply points the reviewer at both. Two recordings were thrown away before
+working that out.
+
+## What happens when Apple replies
+
+1. **Approved** — next build is 1.0.1 with a fresh build number, carrying the
+   attribution fix.
+2. **Rejected again** — fix what they cite, and the attribution fix rides along
+   in 1.0 with build 4.
+
+Version numbers cannot be chosen in advance: Apple requires the build's version
+string to match the App Store Connect record, so the outcome decides it.
+
 3. **Then move routing to Oracle.** Explicitly for the resume, not because the
-   app needs it: there are no users and no production rate-limit problem. The
+   app needs it — there are no users and no production rate-limit problem. The
    value is that the self-hosting story currently ends at "on my laptop".
-
-`worker/src/index.js` is already written for step 3 and inert until
-`SELF_HOSTED_ORIGIN` is set.
+   `worker/src/index.js` is already written for this and inert until
+   `SELF_HOSTED_ORIGIN` is set. Oracle's always-free tier is 2 OCPU / 12 GB
+   since 2026-06-15; serving the four-state graph measured 1.12 GB.
 
 ## Open
 
