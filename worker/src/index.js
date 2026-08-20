@@ -107,7 +107,8 @@ export default {
     // HeiGIT exactly as it always has — which is what makes deploying this safe
     // before any server exists.
     if (env.SELF_HOSTED_ORIGIN && originIsInNewJersey(body)) {
-      const local = await trySelfHosted(env.SELF_HOSTED_ORIGIN, body, store);
+      const local = await trySelfHosted(
+        env.SELF_HOSTED_ORIGIN, body, env.SELF_HOSTED_TOKEN, store);
       if (local) return local;
       // Fall through to HeiGIT. A dead box is a slower app, not a broken one.
     }
@@ -142,14 +143,22 @@ export default {
  * a second opinion from HeiGIT. A 429 can't happen here; there is no limit to
  * hit, which is the entire reason this path exists.
  */
-async function trySelfHosted(origin, body, store) {
+async function trySelfHosted(origin, body, token, store) {
   try {
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/geo+json",
+    };
+    // The tunnel hostname is public — Cloudflare serves it to anyone who knows
+    // the name — and ORS has no notion of auth. A gate at the origin checks
+    // this header and 403s everything else, so without it our box would be free
+    // routing for strangers: the same problem we left HeiGIT to escape, on
+    // hardware we pay for.
+    if (token) headers["X-Aimless-Origin"] = token;
+
     const response = await fetch(origin + ALLOWED_PATH, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/geo+json",
-      },
+      headers,
       body,
       signal: AbortSignal.timeout(SELF_HOSTED_TIMEOUT_MS),
     });

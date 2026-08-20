@@ -117,55 +117,61 @@ error. See README.
 Once healthy, confirm it actually routes before wiring anything up — `compare.sh`
 runs the same seeds against local and the Worker side by side.
 
-## 4. Cloudflare Tunnel
+## 4. Cloudflare Tunnel — done 2026-08-20
 
-The box gets no public IP exposure and no open inbound ports. `cloudflared` dials
-out to Cloudflare and the hostname is reachable only through it.
+Live at **https://ors.workdocks.com**, tunnel `aimless-ors`
+(`d47a138a-3c81-42a1-a6b9-44034c3ee007`). The box has no inbound ports open;
+`cloudflared` dials out to Cloudflare and runs as a systemd service.
 
 ```
-curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb -o cloudflared.deb
-sudo dpkg -i cloudflared.deb
-cloudflared tunnel login
+cloudflared tunnel login            # browser, once, selects the zone
 cloudflared tunnel create aimless-ors
-cloudflared tunnel route dns aimless-ors ors.<your-domain>
+cloudflared tunnel route dns aimless-ors ors.workdocks.com
+# credentials json -> /etc/cloudflared/ on the box, then:
+sudo cloudflared service install && sudo systemctl enable --now cloudflared
 ```
 
-`~/.cloudflared/config.yml`:
+### The hostname is public, so there is a gate behind it
 
-```yaml
-tunnel: aimless-ors
-credentials-file: /home/ubuntu/.cloudflared/<tunnel-id>.json
-ingress:
-  - hostname: ors.<your-domain>
-    service: http://localhost:8080
-  - service: http_status:404
+A tunnel hostname is served by Cloudflare to **anyone who knows the name**, and
+ORS has no notion of authentication. Left open, the box is free routing for
+strangers — the same problem we left HeiGIT to escape, except on hardware we
+pay for.
+
+So nginx sits on `127.0.0.1:8081` between the tunnel and ORS and checks one
+header, `X-Aimless-Origin`, returning 403 for everything else. The tunnel points
+at the gate rather than at ORS directly. The Worker sends the header from the
+`SELF_HOSTED_TOKEN` secret.
+
+Verified: without the header the hostname returns **403 on every path, health
+included**; with it, routes come back normally.
+
+**Cloudflare Access with a service token would be strictly better** and is the
+obvious hardening later: it rejects at Cloudflare's edge instead of at our
+origin, so unauthorised traffic never reaches the box or its bandwidth. It was
+skipped here only because it needs dashboard work; the gate is equivalent for
+the threat we actually have, which is strangers using our router.
+
+## 5. Point the Worker at it — done
+
 ```
-
-```
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-```
-
-**The hostname is public once this is up.** An open routing engine is abusable,
-so put Cloudflare Access in front of it with a service token and have the Worker
-send `CF-Access-Client-Id` and `CF-Access-Client-Secret`. Without that, anyone
-who finds the hostname gets free routing on our box — which is the same problem
-we are moving off HeiGIT to avoid, just with us paying for it.
-
-## 5. Point the Worker at it
-
-```
-cd worker
-wrangler secret put SELF_HOSTED_ORIGIN     # https://ors.<your-domain>/ors
+wrangler secret put SELF_HOSTED_ORIGIN    # https://ors.workdocks.com/ors
+wrangler secret put SELF_HOSTED_TOKEN     # matches the nginx gate
 wrangler deploy
 ```
 
-**The `/ors` suffix is mandatory and omitting it fails silently** — every request
-404s, falls back to HeiGIT, and the app keeps working at HeiGIT's latency under
-HeiGIT's rate limit. See `worker/README.md`.
+Measured after deploying, fresh seeds so nothing came from cache:
 
-Verify with the `X-Aimless-Served-By` header, which reads `self` or `heigit` on
-every response. A Marlboro NJ origin must come back `self`.
+| Origin | Served by |
+|---|---|
+| Marlboro NJ | **self** |
+| Jersey City NJ | **self** |
+| Apple Park CA | heigit |
+| Chicago IL | heigit |
+
+**The fallback was tested rather than assumed.** With nginx stopped, a New
+Jersey request returned 200 from HeiGIT — degraded to slower, not broken —
+and went back to `self` on its own once the gate came back.
 
 ## Rolling back
 

@@ -158,6 +158,24 @@ in 0.73 s, so a generate lands near 1.1 s and sustained throughput is roughly
 **50 generates per minute against HeiGIT's 2**. A single request also got faster
 (38-80 ms against 430-970 ms), but under a real burst two Ampere cores queue.
 
+### Live as of 2026-08-20
+
+**New Jersey traffic now routes to our own box.** Verified by the
+`X-Aimless-Served-By` header: Marlboro and Jersey City come back `self`, Apple
+Park and Chicago come back `heigit`.
+
+- Hostname `https://ors.workdocks.com` via Cloudflare Tunnel — no inbound ports
+  open on the instance.
+- An nginx gate on `127.0.0.1:8081` checks `X-Aimless-Origin` and 403s anything
+  without it, because a tunnel hostname is public to anyone who knows the name
+  and ORS has no auth of its own. The Worker sends it from `SELF_HOSTED_TOKEN`.
+- Worker secrets: `SELF_HOSTED_ORIGIN` (note the mandatory `/ors` suffix),
+  `SELF_HOSTED_TOKEN`, plus the existing `ORS_API_KEY` and `CLIENT_TOKEN`.
+- **Fallback tested, not assumed**: with the gate stopped, a New Jersey request
+  still returned 200 from HeiGIT and recovered on its own.
+
+Rollback is still `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy.
+
 ### What is left
 
 1. **Cloudflare Tunnel — blocked on owning a domain.** Named tunnels require a

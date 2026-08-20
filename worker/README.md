@@ -114,3 +114,13 @@ already on its way, and the cache is per-datacentre rather than global.
 **This was the fix for the Guideline 2.1(a) rejection** — a reviewer tapping
 Generate repeatedly hit the rate limit and saw an error. It is server-side, so
 it shipped without a new build.
+
+## Self-hosted origin auth
+
+`SELF_HOSTED_TOKEN` is sent to our own instance as `X-Aimless-Origin`. An nginx
+gate in front of ORS checks it and 403s everything else.
+
+It exists because a Cloudflare Tunnel hostname is public — Cloudflare serves it
+to anyone who knows the name — and ORS has no authentication of its own. Unset
+the secret and the header is simply omitted, which the gate will reject; that
+degrades to HeiGIT rather than failing, like any other non-200 from the box.
