@@ -46,8 +46,26 @@ const NJ_BBOX = { minLon: -75.56, maxLon: -73.89, minLat: 38.93, maxLat: 41.36 }
  */
 const SELF_HOSTED_TIMEOUT_MS = 1000;
 
+/**
+ * How long a routed answer stays good.
+ *
+ * ORS is deterministic: the same seed, origin and request size returns the
+ * identical route forever — verified, same geometry and duration to the metre
+ * across repeated calls. Only the response's own timestamp differs.
+ *
+ * That makes this cache unusually effective here, because **the app asks for
+ * seeds 1-12 on every first round**. Tapping Generate a second time in the same
+ * spot re-sends twelve byte-identical requests. Uncached, four generates at a
+ * desk cost 48 requests against a 40/minute ceiling and the fourth one fails —
+ * which is exactly the bug App Review reported.
+ *
+ * A day is well inside how fast road data moves; the graph behind it is rebuilt
+ * far less often than that.
+ */
+const CACHE_TTL_SECONDS = 86400;
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method !== "POST") {
       return json(405, "Method not allowed");
     }
@@ -72,12 +90,24 @@ export default {
       return json(413, "Payload too large");
     }
 
+    // A previously answered identical request. Costs no upstream quota at all,
+    // which is the whole point — see CACHE_TTL_SECONDS.
+    const cache = caches.default;
+    const cacheKey = await cacheKeyFor(body);
+    const store = { ctx, cache, cacheKey };
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set("X-Aimless-Cache", "hit");
+      return new Response(cached.body, { status: 200, headers });
+    }
+
     // Try our own instance first when one is configured and the route starts
     // somewhere it covers well. Unset SELF_HOSTED_ORIGIN and everything goes to
     // HeiGIT exactly as it always has — which is what makes deploying this safe
     // before any server exists.
     if (env.SELF_HOSTED_ORIGIN && originIsInNewJersey(body)) {
-      const local = await trySelfHosted(env.SELF_HOSTED_ORIGIN, body);
+      const local = await trySelfHosted(env.SELF_HOSTED_ORIGIN, body, store);
       if (local) return local;
       // Fall through to HeiGIT. A dead box is a slower app, not a broken one.
     }
@@ -99,7 +129,7 @@ export default {
       return json(502, "Upstream unreachable");
     }
 
-    return passThrough(upstream, "heigit");
+    return passThrough(upstream, "heigit", store);
   },
 };
 
@@ -112,7 +142,7 @@ export default {
  * a second opinion from HeiGIT. A 429 can't happen here; there is no limit to
  * hit, which is the entire reason this path exists.
  */
-async function trySelfHosted(origin, body) {
+async function trySelfHosted(origin, body, store) {
   try {
     const response = await fetch(origin + ALLOWED_PATH, {
       method: "POST",
@@ -123,7 +153,7 @@ async function trySelfHosted(origin, body) {
       body,
       signal: AbortSignal.timeout(SELF_HOSTED_TIMEOUT_MS),
     });
-    return response.status === 200 ? passThrough(response, "self") : null;
+    return response.status === 200 ? passThrough(response, "self", store) : null;
   } catch (e) {
     return null;
   }
@@ -171,7 +201,7 @@ function originIsInNewJersey(body) {
  * Content-Type and threw them away, which left us unable to answer "how close
  * to the limit are we" without arithmetic and assumptions.
  */
-function passThrough(upstream, servedBy) {
+function passThrough(upstream, servedBy, store) {
   const headers = new Headers({
     "Content-Type":
       upstream.headers.get("Content-Type") ?? "application/geo+json",
@@ -183,7 +213,46 @@ function passThrough(upstream, servedBy) {
       headers.set(name, value);
     }
   }
+  headers.set("X-Aimless-Cache", "miss");
+
+  // Only 200s are worth keeping. A 429 cached for a day would outlive the
+  // minute it belongs to, and a 404 is one dead seed rather than a fact about
+  // the route — caching either would turn a transient state into a permanent
+  // one.
+  // clone() before the body is read. Splitting the stream by hand instead
+  // (tee, then reading upstream.body) locks the original and throws on every
+  // single request.
+  if (upstream.status === 200 && store) {
+    const forCache = new Response(upstream.clone().body, {
+      status: 200,
+      headers: new Headers({
+        "Content-Type": headers.get("Content-Type"),
+        // The client copy says no-store; this stored copy is the one the edge
+        // is allowed to keep, so it needs its own lifetime.
+        "Cache-Control": `max-age=${CACHE_TTL_SECONDS}`,
+        "X-Aimless-Served-By": servedBy,
+      }),
+    });
+    store.ctx.waitUntil(store.cache.put(store.cacheKey, forCache));
+  }
+
   return new Response(upstream.body, { status: upstream.status, headers });
+}
+
+/**
+ * A stable cache key for a request body.
+ *
+ * The Cache API keys on URL, so the body is hashed into a synthetic one. The
+ * hostname is deliberately unroutable — nothing ever fetches it, it exists only
+ * to give the cache something to index.
+ */
+async function cacheKeyFor(body) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256", new TextEncoder().encode(body));
+  const hex = [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return new Request(`https://aimless-cache.invalid/${hex}`, { method: "GET" });
 }
 
 function json(status, message) {

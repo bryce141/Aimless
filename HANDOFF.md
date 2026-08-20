@@ -28,6 +28,49 @@ up, and the status-bar location arrow appears the moment access is granted. The
 reply points the reviewer at both. Two recordings were thrown away before
 working that out.
 
+## Rejected again 2026-08-19, and what fixed it
+
+Second rejection of 1.0 (3), on two counts. Reviewed on an **iPad Air 11-inch
+(M3), iPadOS 26.6** — the app is `TARGETED_DEVICE_FAMILY = 1`, so it ran in
+iPhone compatibility mode. **The iPad was incidental to both problems.**
+
+**Guideline 2.1(a): "an error message after tap on generate button."** This was
+the HeiGIT rate limit, reproduced exactly: 40 requests/minute shared across
+every user, ~18 per generate, so the fourth generate inside a minute comes back
+throttled and the app surfaces an error. Measured from Apple Park coordinates —
+generates 1-3 all 200, generate 4 gave 4 ok and 8 throttled, generate 5 gave
+twelve throttled.
+
+Ruled out on the way: routing from Cupertino works (12/12 candidates, 6/6
+verified), the ±25% duration filter accepts those, and Generate is correctly
+gated on `location.isUsable`, so the reviewer had a fix.
+
+**Fixed server-side, no new build, by caching in the Worker.** The app requests
+seeds 1-12 on every first round and ORS is deterministic, so repeated generates
+in one spot are byte-identical requests. Four generates went from 48 upstream
+requests with 8 throttled to 23 with none. See `worker/README.md`.
+
+**Note the Worker had never actually been deployed** — the live version predated
+the self-hosted routing, the `X-Aimless-Served-By` header and the rate-limit
+header forwarding, all of which were sitting in source. Deployed now.
+
+**Guideline 1.5: Support URL.** The URL loads and always did — the repo has been
+public since 8 August and returns 200. The real fault is that it is a developer
+README with **no contact address anywhere on it**, so a user needing help has
+nowhere to go. Now a proper support page at
+**https://bryce141.github.io/Aimless/**, served from `docs/` via GitHub Pages,
+with Brycepercoco@gmail.com on it. Update the Support URL in App Store Connect
+to point there.
+
+### A fix that was proposed and dropped
+
+Cutting `seedsPerRound` from 12 looked obvious and the measurements killed it.
+In-band survival is **62% at 60 minutes, 38% at 90, 29% at 2 hours** — so six
+seeds leaves only two survivors on both longer options, below `desiredCount`,
+which fires the retry round and costs *another* twelve requests. Even eight
+seeds lands exactly on three with no margin and saves just four requests,
+because the six verification reroutes are fixed. **12 is right; leave it.**
+
 ## What happens when Apple replies
 
 1. **Approved** — next build is 1.0.1 with a fresh build number, carrying the

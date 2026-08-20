@@ -86,3 +86,31 @@ The timeout is 1000 ms (`SELF_HOSTED_TIMEOUT_MS`), against 55-140 ms measured
 locally. It is sized to catch a box that is wedged or reclaimed, not one that is
 briefly busy. Note the first request after a restart is slower — `MMAP` serves
 the graph from disk, so the page cache starts cold and one request paid 200 ms.
+
+## Caching
+
+Successful routes are cached at the edge for 24 hours, keyed on a SHA-256 of the
+request body. Only 200s are stored — a cached 429 would outlive the minute it
+belongs to, and a cached 404 would turn one dead seed into a permanent fact
+about that route.
+
+**This matters more than it looks, because the app asks for seeds 1-12 on every
+first round.** ORS is deterministic — same seed, origin and size returns the
+identical route forever — so tapping Generate twice in the same spot re-sends
+twelve byte-identical requests. Uncached, four generates at a desk cost 48
+requests against HeiGIT's 40/minute ceiling and the fourth one fails.
+
+Measured before and after, four generates from one origin:
+
+| | Upstream requests | Throttled |
+|---|---|---|
+| Before | 48 | **8 of 12 on generate #4** |
+| After | 23 | **none** |
+
+`X-Aimless-Cache` reads `hit` or `miss` on every response. Expect the first
+repeat to still miss: `cache.put` runs in `waitUntil` after the response is
+already on its way, and the cache is per-datacentre rather than global.
+
+**This was the fix for the Guideline 2.1(a) rejection** — a reviewer tapping
+Generate repeatedly hit the rate limit and saw an error. It is server-side, so
+it shipped without a new build.
