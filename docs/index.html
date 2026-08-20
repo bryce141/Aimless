@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aimless — Support</title>
+<style>
+  :root {
+    --bg: #fdfaf5; --ink: #241d18; --muted: #6b5d52;
+    --ember: #e08a3c; --card: #ffffff; --line: #e8ddd0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1512; --ink: #f4ece2; --muted: #a1907f;
+      --ember: #e8994f; --card: #241d18; --line: #362b23;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2.5rem 1.25rem 4rem;
+    background: var(--bg); color: var(--ink);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 44rem; margin: 0 auto; }
+  h1 { font-size: 2.6rem; margin: 0 0 .25rem; letter-spacing: -.02em; }
+  .tagline { color: var(--muted); font-size: 1.15rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.3rem; margin: 2.5rem 0 .75rem; }
+  h3 { font-size: 1.02rem; margin: 1.5rem 0 .35rem; }
+  p, li { color: var(--ink); }
+  a { color: var(--ember); }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 1.25rem 1.5rem; margin: 1.5rem 0;
+  }
+  .contact { font-size: 1.1rem; }
+  footer {
+    margin-top: 3.5rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Aimless</h1>
+  <p class="tagline">No particular place to be.</p>
+
+  <div class="card contact">
+    <strong>Need help?</strong><br>
+    Email <a href="mailto:Brycepercoco@gmail.com">Brycepercoco@gmail.com</a><br>
+    <span style="color:var(--muted);font-size:.95rem">
+      One person answers this address. Expect a reply within a few days.
+    </span>
+  </div>
+
+  <h2>What Aimless does</h2>
+  <p>
+    Aimless builds a circular driving route that starts and ends where you are.
+    You choose roughly how long you want to be out — one hour, ninety minutes,
+    or two — and it hands you three loops. Pick one and it opens in Google Maps
+    with turn-by-turn navigation.
+  </p>
+  <p>
+    It exists for one specific annoyance: you drive with no destination, get too
+    far out, and the way home is dead time retracing roads you just covered.
+  </p>
+
+  <h2>Common questions</h2>
+
+  <h3>Why does it need my location?</h3>
+  <p>
+    The loop starts and ends where you are, so it needs a starting point. Aimless
+    asks for location only while you are using it, and the coordinate is used to
+    request a route and nothing else. It is never stored or transmitted anywhere
+    beyond the routing request.
+  </p>
+
+  <h3>It says Precise Location is off</h3>
+  <p>
+    With Precise Location turned off, iOS reports an approximate position that can
+    be off by kilometres — far enough that the loop would start somewhere you are
+    not. Rather than hand you a route from the wrong place, Aimless asks you to
+    turn it on: <em>Settings → Privacy &amp; Security → Location Services →
+    Aimless → Precise Location</em>.
+  </p>
+
+  <h3>It is stuck on "Finding you…"</h3>
+  <p>
+    That means iOS has not returned a location fix yet. Indoors, in a garage, or
+    on a cold start it can take a moment or fail outright. Tap <strong>Try
+    Again</strong>, or step somewhere with a clearer view of the sky.
+  </p>
+
+  <h3>It could not build any loops</h3>
+  <p>
+    Routes come from a road network that covers public roads worldwide, but some
+    starting points genuinely have nowhere to loop — a peninsula tip, an island,
+    or a spot with water on three sides. Moving a short distance and trying again
+    usually works.
+  </p>
+
+  <h3>It says to wait a moment and try again</h3>
+  <p>
+    Aimless shares a routing service with every other copy of the app, and that
+    service limits how many routes can be requested per minute. Generating
+    several times in quick succession can reach that limit. Waiting a minute
+    clears it.
+  </p>
+
+  <h3>The drive took longer than the app said</h3>
+  <p>
+    Times are estimates from the routing engine and do not account for traffic,
+    lights, or how you actually drive. Treat them as approximate.
+  </p>
+
+  <h2>Privacy</h2>
+  <p>
+    Aimless collects nothing. There are no accounts, no analytics, no tracking,
+    and no advertising. Your location is used to build a route and is not stored
+    or shared. The full policy is in
+    <a href="https://github.com/bryce141/Aimless/blob/main/PRIVACY.md">PRIVACY.md</a>.
+  </p>
+
+  <h2>Attribution</h2>
+  <p>
+    Routing by
+    <a href="https://openrouteservice.org">© openrouteservice by HeiGIT</a> |
+    Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+    contributors.
+  </p>
+
+  <footer>
+    Aimless for iOS · <a href="https://github.com/bryce141/Aimless">Source on GitHub</a>
+  </footer>
+</main>
+</body>
+</html>
