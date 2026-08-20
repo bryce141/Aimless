@@ -3,30 +3,34 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-18.
+Last updated 2026-08-20.
 
 ## Where this stands
 
-**1.0 (3) is back with App Review as of 2026-08-14.** No code change was
-involved and none is pending.
+**Waiting on App Review, third pass.** Replied to the second rejection on
+2026-08-19 and the Support URL is updated in App Store Connect. **No new build
+was uploaded and none is needed** — both fixes were server-side or metadata, so
+the reviewer can retest the 1.0 (3) binary they already have. The reply text is
+in `store/review-reply-2.txt`.
 
-Apple rejected under **Guideline 2.1, Information Needed** — not a bug, not a
-crash, nothing wrong with the app. The reviewer wanted documentation the
-submission never carried, in seven numbered items, plus a screen recording made
-on a physical device. Answers to items 2-7 live in `store/review-notes.md`, and
-are now in both the App Review Information Notes field and the reply itself.
+Two rejections so far, neither of them a code defect:
 
-That rejection forced the device test that was deliberately skipped before
-submitting, and the app passed it: location permission, generation, and the
-Google Maps handoff all work on an iPhone Air running iOS 26.5.2. "Drive This"
-opens Google Maps in live turn-by-turn navigation on the generated route.
+1. **2026-08-14, Guideline 2.1 Information Needed.** Wanted documentation the
+   submission never carried, plus a screen recording on a physical device.
+   Answers live in `store/review-notes.md`. That rejection forced the device
+   test that had been skipped, and the app passed it — location, generation and
+   the Google Maps handoff all work on an iPhone Air running iOS 26.5.2.
+2. **2026-08-19, Guidelines 2.1(a) and 1.5.** The rate limit and the Support
+   URL. Both fixed and verified — see the next section.
 
-One thing worth carrying forward: **iOS does not capture system permission
-dialogs in screen recordings**, so the location alert cannot be filmed that way.
-It is visible indirectly — the app sits on "Finding you..." while the alert is
-up, and the status-bar location arrow appears the moment access is granted. The
-reply points the reviewer at both. Two recordings were thrown away before
-working that out.
+Worth carrying forward from the first round: **iOS does not capture system
+permission dialogs in screen recordings**, so the location alert cannot be
+filmed. It shows indirectly — the app sits on "Finding you..." while the alert
+is up, and the status-bar arrow appears the moment access is granted. Two
+recordings were thrown away before working that out.
+
+**Still never driven.** Everything past the simulator and the API is guesswork
+without it.
 
 ## Rejected again 2026-08-19, and what fixed it
 
@@ -59,8 +63,8 @@ public since 8 August and returns 200. The real fault is that it is a developer
 README with **no contact address anywhere on it**, so a user needing help has
 nowhere to go. Now a proper support page at
 **https://bryce141.github.io/Aimless/**, served from `docs/` via GitHub Pages,
-with Brycepercoco@gmail.com on it. Update the Support URL in App Store Connect
-to point there.
+with Brycepercoco@gmail.com on it. **The Support URL in App Store Connect was
+updated to point there on 2026-08-19.**
 
 ### A fix that was proposed and dropped
 
@@ -212,6 +216,33 @@ HeiGIT and still shares its ceiling. This scales one region, not the app.
 **Open question, not yet answered:** whether "v2" also means a paid Pro tier.
 Unrelated work — StoreKit, subscriptions, a real App Review surface — and should
 be planned separately.
+
+## The app degrades where roads are sparse, and nothing says so
+
+Measured 2026-08-20, one seed each at the 60-minute size. Coverage is worldwide
+— OpenStreetMap via HeiGIT routes the whole planet, and the Oracle box is a
+speed optimisation for New Jersey rather than a coverage boundary:
+
+| Origin | Result |
+|---|---|
+| Austin TX | 95 min, 31 mi |
+| Burlington VT | 109 min, 31 mi |
+| Maui HI | 89 min, 28 mi |
+| Scottish Highlands | 159 min, 44 mi |
+| **Anchorage AK** | **397 min, 199 mi** |
+| rural Montana | 404 on that seed |
+
+**Anchorage is the finding.** A 33 km request came back as a six-hour loop,
+because the road network is thin enough that there is nothing shorter to build.
+The ±25% duration filter rejects that, so a user there most likely sees "Found
+loops, but none close to 1 hour" rather than a route. The app is honest at
+runtime — it declines rather than handing over a bad loop — but **the listing
+does not mention road density anywhere**, and that is a real product limit.
+
+Not a false-advertising problem: the listing makes no geographic claim, and
+"back-road loops from anywhere" is accurate about where it will *try*. If a
+caveat is ever added, it should be about road density, not geography. Bryce
+wants to revisit this.
 
 ## Store assets
 
