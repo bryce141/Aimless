@@ -1,0 +1,54 @@
+Hello,
+
+Thank you for the detailed report — both issues are resolved. Details below.
+
+
+GUIDELINE 2.1(a) — error message after tapping Generate
+
+We reproduced this and found the cause. It is not specific to iPad.
+
+Aimless requests routes from a third-party routing service that enforces a
+limit of 40 requests per minute shared across all users of the app. A single
+tap of Generate costs roughly 18 of those requests, because the app requests
+twelve candidate loops and then verifies the most promising ones. Three
+generates within one minute therefore succeed, and a fourth is throttled by
+the routing service. When that happens the app correctly reports that it could
+not build a route, which is the error message you saw.
+
+Testing the app repeatedly, as a reviewer naturally would, reaches that limit
+in normal use. We consider this a real defect rather than expected behavior.
+
+The fix is deployed and live. Route responses are now cached, which is
+effective here because identical requests return identical routes. Measured
+before and after, performing four generates in succession from one location:
+
+  Before:  48 requests to the routing service, 8 of them throttled
+  After:   23 requests to the routing service, none throttled
+
+We verified this against the live service using coordinates in Cupertino,
+California, and the error no longer occurs.
+
+Please note this fix is entirely server-side, in the routing service the app
+communicates with. It required no change to the app binary, so build 1.0 (3)
+currently under review is already corrected and needs no resubmission. Simply
+testing the existing build again will show the corrected behavior.
+
+
+GUIDELINE 1.5 — Support URL
+
+The Support URL has been updated to:
+
+  https://bryce141.github.io/Aimless/
+
+The previous URL pointed to the project's source code repository. While that
+page loads, we agree it was not a support page — it contained no way for a user
+to contact us. The new page provides a support email address and answers the
+questions a user is most likely to have, including location permission
+requirements, what to do if no route can be generated, and privacy information.
+
+
+We are happy to provide any further information that would help. Thank you for
+your time.
+
+Best regards,
+Bryce Percoco
