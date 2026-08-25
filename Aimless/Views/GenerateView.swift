@@ -6,6 +6,8 @@ struct GenerateView: View {
     @State private var location = LocationProvider()
     @State private var model = LoopViewModel()
     @State private var showResults = false
+    /// Set when Generate is tapped without a location fix behind it.
+    @State private var blocked = false
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -38,28 +40,38 @@ struct GenerateView: View {
             ZStack {
                 Theme.background
 
-                // Map and picker read as one block — "here, and for this long" —
-                // with the action pinned to the bottom. Two spacers instead of
-                // one would center the picker in the leftover space and open a
-                // dead gap under the map.
-                // The map takes the slack rather than a Spacer, so leftover
-                // space on a big phone becomes more map instead of a void above
-                // the button. Controls stay pinned to the bottom where a thumb
-                // already is.
+                // Map and picker read as one block — "here, and for this long"
+                // — with the action pinned below them. The map takes the slack
+                // rather than a Spacer, so leftover space on a big phone
+                // becomes more map instead of a dead gap above the button.
+                //
+                // `minHeight` is deliberately low. This is an iPhone-only
+                // binary, so on an iPad it runs in a compatibility window that
+                // is shorter than any iPhone. At a 240pt floor the extra two
+                // lines of a location status message overflowed the window and
+                // clipped both the title and the Generate button off their
+                // edges — App Review tapped the half-visible button and
+                // reported that nothing happened.
                 VStack(spacing: 0) {
                     header
                     map
-                        .frame(minHeight: 240, maxHeight: .infinity)
+                        .frame(minHeight: 150, maxHeight: .infinity)
                         .cozyCard()
                         .padding(.top, 18)
 
                     durationPicker
                         .padding(.top, 16)
-
+                }
+                .padding(.horizontal, 24)
+                .frame(maxHeight: .infinity, alignment: .top)
+            }
+            // Pinned rather than stacked. The action reserves its own space
+            // before the map and picker get any, so no combination of status
+            // text and window height can push it off screen.
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 14) {
                     status
-                        .padding(.top, 14)
                     generateButton
-                        .padding(.top, 14)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
@@ -67,6 +79,17 @@ struct GenerateView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showResults) {
                 LoopResultsView(loops: model.loops, duration: model.duration)
+            }
+            .alert("Can\u{2019}t generate yet", isPresented: $blocked) {
+                switch location.status {
+                case .denied, .reducedAccuracy:
+                    Button("Open Settings") { openSettings() }
+                    Button("Not Now", role: .cancel) {}
+                default:
+                    Button("OK", role: .cancel) {}
+                }
+            } message: {
+                Text(blockedReason)
             }
             .onAppear {
                 location.start()
@@ -207,7 +230,11 @@ struct GenerateView: View {
             .background(location.isUsable ? Theme.ember : Theme.ember.opacity(0.35))
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .disabled(!location.isUsable || model.isGenerating)
+        // Disabled only while a generate is already running. A button that is
+        // visible, looks like a button, and does literally nothing on tap is
+        // indistinguishable from a broken app — which is exactly how App Review
+        // described it. Without a fix the tap now explains itself.
+        .disabled(model.isGenerating)
         .sensoryFeedback(.success, trigger: model.loops.count)
     }
 
@@ -223,6 +250,19 @@ struct GenerateView: View {
             return "Finding you\u{2026}"
         case .ready:
             return model.errorMessage
+        }
+    }
+
+    /// Why the tap could not do anything, in the same words the status line
+    /// uses, so the alert and the screen never contradict each other.
+    private var blockedReason: String {
+        switch location.status {
+        case .locating:
+            return "Aimless is still finding you. Give it a moment and tap Generate again."
+        case .ready:
+            return "Aimless doesn\u{2019}t have a location fix yet. Tap Generate again in a moment."
+        default:
+            return statusMessage ?? ""
         }
     }
 
@@ -246,11 +286,23 @@ struct GenerateView: View {
     }
 
     private func generate() {
-        guard let origin = location.current else { return }
+        guard location.isUsable, let origin = location.current else {
+            // Retry first: `.locating` and `.failed` both clear on their own
+            // once a fix lands, and a stale `.failed` is one request away from
+            // working. Then say something, because silence here is the defect.
+            location.start()
+            blocked = true
+            return
+        }
         Task {
             await model.generate(from: origin)
             if model.hasResults { showResults = true }
         }
+    }
+
+    private func openSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 

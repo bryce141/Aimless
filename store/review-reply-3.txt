@@ -1,0 +1,88 @@
+Hello,
+
+Thank you for the report. This one was a genuine defect in the app rather than
+a server-side or metadata issue, and it is fixed in build 1.0 (4).
+
+
+GUIDELINE 2.1(a) — nothing happened when tapping Generate
+
+We reproduced this on iPad and found three related causes.
+
+Aimless is built as an iPhone application, so on iPad it runs in iPhone
+compatibility mode, in a window shorter than any iPhone screen. The Generate
+screen arranged its content in a fixed vertical stack sized for a phone. When
+the app additionally needed to show a location status message — for example,
+that it does not yet have a location fix, which occupies two lines plus a link
+— the content exceeded the available height and the Generate button was
+clipped off the bottom edge of the window. Only the top portion of the button
+remained visible.
+
+Two further problems made that state worse:
+
+1. Generate was disabled whenever the app had no usable location fix, and a
+   tap on a disabled control produced no response of any kind. Nothing on
+   screen changed and no explanation was offered.
+
+2. The location handling could become stuck. Once a fix had been obtained, any
+   later failed refresh left the app showing "Finding you..." indefinitely,
+   with Generate disabled and no way to recover short of force quitting. This
+   is particularly relevant on iPad: Wi-Fi-only iPad models have no GPS
+   receiver and derive location from nearby Wi-Fi networks, so failed
+   refreshes are considerably more common than on iPhone.
+
+Together these produce exactly the behavior you observed — a visible Generate
+button that does nothing when tapped.
+
+All three are fixed in build 1.0 (4):
+
+- The Generate button is now pinned to the bottom of the screen and reserves
+  its space before any other content is laid out. No combination of status
+  text and window size can push it off screen or clip it.
+
+- Generate is no longer disabled when location is unavailable. It is disabled
+  only while a route generation is already in progress. Tapping it without a
+  location fix now retries the location request and presents an alert
+  explaining what is required, including a button that opens Settings when
+  location permission is the cause.
+
+- The location code now always leaves the "finding" state when a request
+  fails, returning either to an error state with a retry control or to the
+  previous known fix. The app can no longer become stuck.
+
+
+VERIFICATION
+
+We reproduced the original fault on an iPad running iPadOS 26, captured it,
+applied the fixes and confirmed the corrected behavior on the same
+configuration:
+
+  Before:  with a location status message displayed, the app title was
+           clipped at the top of the window and the Generate button was
+           clipped at the bottom.
+
+  After:   the full screen renders within the window, with the Generate
+           button entirely visible, in every location state.
+
+We also confirmed that route generation itself was unaffected and continues to
+work correctly on iPad, producing valid driving loops end to end.
+
+
+REPRODUCING THE ORIGINAL FAULT
+
+If it is useful for your retest, the fastest way to reach the state we believe
+you encountered is to decline the location permission prompt, or disable
+location access for Aimless in Settings, and then open the app. On the
+previous build this clipped the Generate button off the bottom of the window.
+On build 1.0 (4) the button is fully visible, and tapping it explains that
+location access is required and offers to open Settings.
+
+We appreciate you testing on iPad. Both reviews that named a review device
+were carried out on iPad, and this defect only appears there — it does not
+reproduce on iPhone, which is where our own device testing was done. We have
+added iPad to our test matrix.
+
+We are happy to provide any further information that would help. Thank you for
+your time.
+
+Best regards,
+Bryce Percoco

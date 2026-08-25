@@ -54,7 +54,12 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
             status = .reducedAccuracy
             return
         }
-        status = .locating
+        // Only fall back to "Finding you..." when there is genuinely nothing to
+        // fall back on. `start()` runs on every return to the foreground, so
+        // dropping a good fix to `.locating` here disabled Generate every time
+        // the app came back — including the moment right after the permission
+        // alert, which is the first thing anyone does.
+        if current == nil { status = .locating }
         manager.requestLocation()
     }
 
@@ -80,12 +85,13 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // This has to be visible. Without it the button stays disabled forever
-        // under a "Finding you…" that stopped being true, and the only way out
-        // is force-quitting the app.
-        //
-        // A failure after we already have a fix is not worth discarding a good
-        // coordinate over — an old fix beats no fix for picking a start point.
-        if current == nil { status = .failed }
+        // This has to be visible, and it has to leave `.locating` in every
+        // case. A failure after we already have a fix is not worth discarding a
+        // good coordinate over — an old fix beats no fix for picking a start
+        // point — but leaving the status on `.locating` pinned the button
+        // disabled under a "Finding you…" that stopped being true, with no
+        // recovery control, until the app was force-quit. Wi-Fi-only iPads have
+        // no GPS and fail this way routinely; App Review hit it on an iPad Air.
+        status = current == nil ? .failed : .ready
     }
 }

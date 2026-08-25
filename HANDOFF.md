@@ -3,17 +3,18 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-20.
+Last updated 2026-08-24.
 
 ## Where this stands
 
-**Waiting on App Review, third pass.** Replied to the second rejection on
-2026-08-19 and the Support URL is updated in App Store Connect. **No new build
-was uploaded and none is needed** — both fixes were server-side or metadata, so
-the reviewer can retest the 1.0 (3) binary they already have. The reply text is
-in `store/review-reply-2.txt`.
+**Rejected three times on 1.0 (3). Build 1.0 (4) is uploaded to App Store
+Connect** and carries the first actual code fixes of the three rounds. The
+reply to the third rejection is at `store/review-reply-3.txt` and **was sent on
+2026-08-24**. Build 1.0 (4) is attached to the 1.0 version record.
 
-Two rejections so far, neither of them a code defect:
+**Waiting on App Review, fourth pass.**
+
+Three rejections. The first two were not code defects; the third was:
 
 1. **2026-08-14, Guideline 2.1 Information Needed.** Wanted documentation the
    submission never carried, plus a screen recording on a physical device.
@@ -21,7 +22,10 @@ Two rejections so far, neither of them a code defect:
    test that had been skipped, and the app passed it — location, generation and
    the Google Maps handoff all work on an iPhone Air running iOS 26.5.2.
 2. **2026-08-19, Guidelines 2.1(a) and 1.5.** The rate limit and the Support
-   URL. Both fixed and verified — see the next section.
+   URL. Both fixed server-side and verified — see the next section.
+3. **2026-08-23, Guideline 2.1(a).** "Nothing happened when we tapped on
+   generate", on an iPad Air (5th generation). A real layout defect plus two
+   compounding location bugs. Fixed in 1.0 (4) — see below.
 
 Worth carrying forward from the first round: **iOS does not capture system
 permission dialogs in screen recordings**, so the location alert cannot be
@@ -75,12 +79,96 @@ which fires the retry round and costs *another* twelve requests. Even eight
 seeds lands exactly on three with no margin and saves just four requests,
 because the six verification reroutes are fixed. **12 is right; leave it.**
 
+## Rejected a third time 2026-08-23, and what fixed it
+
+Guideline 2.1(a): **"nothing happened when we tapped on generate."** Reviewed on
+an **iPad Air (5th generation), iPadOS 26.6.1**. Submission ID
+`0cd7fabf-eade-4dfa-a6a9-ce413df95702`.
+
+**This one was a real code defect** — the first of the three. It needed a new
+binary, which the previous two did not.
+
+Reproduced on 2026-08-23. Three causes, stacked:
+
+1. **The Generate button was clipped off the bottom of the window.**
+   `TARGETED_DEVICE_FAMILY = 1`, so on iPad the app runs in an iPhone
+   compatibility window *shorter than any iPhone screen*. `GenerateView` used a
+   fixed `VStack` with a 240pt floor under the map and no scroll view. Add a
+   two-line location status message plus its recovery link and the content
+   overflowed — title clipped off the top, Generate clipped off the bottom. The
+   reviewer tapped what was left of a disabled button.
+
+2. **A disabled button with no tap feedback.** `.disabled(!location.isUsable
+   || model.isGenerating)` meant a tap without a fix did nothing whatsoever —
+   no alert, no message, no state change. Indistinguishable from a broken app,
+   and filed as one.
+
+3. **A permanent `.locating` deadlock in `LocationProvider`.** `requestFix()`
+   set `.locating` unconditionally; `didFailWithError` only escaped to
+   `.failed` when `current == nil`. So any failed refresh *after* a good fix
+   pinned the status at `.locating` forever — button disabled, "Finding you..."
+   on screen, and `.locating` renders no recovery control. Force-quit was the
+   only way out. `scenePhase` calls `start()` on every foreground, so this
+   fires constantly.
+
+Why iPad and not iPhone: **Wi-Fi-only iPads have no GPS receiver.** Location is
+inferred from a Wi-Fi network database or the public IP, so failed refreshes
+are routine there. Checked against Apple's documentation, not assumed.
+
+Ruled out first: the Worker was healthy throughout — 200 in 1.28s,
+`x-aimless-served-by: heigit`, 1959/2000 rate budget remaining. Not a repeat of
+the round-two rate limit. The full happy path also works on iPad: driven with
+`-autoGenerate` it produced 2 loops at 71 min / 23 mi / 8% highway.
+
+### The fixes, all in 1.0 (4)
+
+- **Action bar moved to `.safeAreaInset(edge: .bottom)`.** It reserves its
+  space before the map and picker get any, so no combination of status text and
+  window height can clip it. Map floor dropped 240pt to 150pt.
+- **Generate is disabled only while a generate is already running.** Tapping it
+  without a fix now retries the location request *and* raises an alert saying
+  why, with an "Open Settings" button when permission is the cause.
+- **`didFailWithError` always leaves `.locating`** — `.failed` with no fix,
+  back to `.ready` if one is already in hand. `requestFix()` no longer drops a
+  good fix to `.locating` on foreground, so the button stays live during a
+  refresh.
+
+Verified on iPad: the denied-permission state now renders complete with margin
+to spare, and the happy path still produces the same 2 loops. Release
+configuration compiles — worth checking specifically, because the
+`-autoGenerate` hook is `#if DEBUG` and Release takes a different path through
+`generate()`.
+
+**The attribution string ships in this build**, as planned.
+
+### Test iPad before every submission
+
+**Every review that named a device used an iPad** — an iPad Air 11-inch (M3) on
+2026-08-19, an iPad Air (5th generation) on 2026-08-23. Never an iPhone. Device
+testing here has been iPhone Air on hardware, which is exactly why this
+shipped. The defect does not reproduce on iPhone at any size.
+
+### The verification claim, if Apple asks
+
+The reply as sent says the fix was confirmed "on an iPad running iPadOS 26".
+What was actually tested is an **iPad Air 11-inch (M4) simulator on the iPadOS
+26.4 runtime** — not physical hardware, and not the 26.6.1 the reviewer used.
+The wording is true but non-specific, and Apple's rejection did say "test the
+app on supported devices".
+
+**If they push back on it, answer precisely rather than restating it.** The
+honest position is a strong one: the fault is a layout overflow that depends on
+window height, not on hardware, and it reproduces and resolves identically in
+the simulator. Say so plainly and name the configuration.
+
+No physical iPad was available. The newest runtime installed is 26.5, so
+testing closer to the review configuration means downloading the iPadOS 26.6
+runtime first (~8-10 GB, and see the disk note in Environment).
+
 ## What happens when Apple replies
 
-1. **Approved** — next build is 1.0.1 with a fresh build number, carrying the
-   attribution fix.
-2. **Rejected again** — fix what they cite, and the attribution fix rides along
-   in 1.0 with build 4.
+1. **Approved** — next build is 1.0.1 with a fresh build number.
+2. **Rejected again** — fix what they cite; the next binary is 1.0 build 5.
 
 Version numbers cannot be chosen in advance: Apple requires the build's version
 string to match the App Store Connect record, so the outcome decides it.
@@ -257,9 +345,22 @@ them.
 - Xcode 26.6 at `/Applications/Xcode.app`, iOS 26.5 SDK.
 - `xcode-select` already points at Xcode.
 - Bryce has a **paid Apple Developer account**.
-- Disk filled up completely during the first build session. Xcode DerivedData is
-  the usual culprit (`rm -rf ~/Library/Developer/Xcode/DerivedData`, safe — it's
-  build cache). Worth watching; builds and device installs need headroom.
+- **Disk is the standing constraint.** It filled completely during the first
+  build session. Measured 2026-08-24: the data volume was at **91%, 183 GiB
+  used with 19 GiB free**. Note `df -h /` reads ~12 GiB used — that is the
+  read-only system snapshot and is misleading; check `/System/Volumes/Data`.
+
+  Where it goes, and what is safe to reclaim:
+
+  | Size | Path | Safe? |
+  |---|---|---|
+  | 56 G | `/Library/Developer/CoreSimulator/Volumes` — runtimes (26.4, 26.4.1, 26.5, one unused watchOS) | Per-runtime, via Xcode Settings ▸ Components. 26.4 and 26.4.1 are a pointless duplicate. |
+  | 24 G | `~/Library/Developer/CoreSimulator/Devices` | `xcrun simctl delete unavailable`, then `shutdown all && erase all` |
+  | 11 G | `~/Library/Developer/Xcode/iOS DeviceSupport` — symbol caches per physical device | Delete entirely; rebuilds on next connect |
+  | 834 M | `~/Library/Developer/Xcode/DerivedData` | Delete entirely; pure build cache |
+  | 12 M | `~/Library/Developer/Xcode/Archives` | **Keep.** Only local copy of what was uploaded. |
+
+  Clearing the first three lands around 55-60 GiB free.
 - Simulator note: `simctl privacy grant location` does *not* suppress the
   CoreLocation prompt on this runtime. To auto-authorize for scripted
   screenshots, write the bundle ID into
@@ -398,13 +499,13 @@ only one of them is fixed by waiting, which the old `isDenied` bool couldn't say
   This was assumed during prototyping, never checked, and shaped planning for
   a while. Self-hosting is now an optimisation, not a compliance requirement.
 
-- **Attribution string: fixed in source, not yet shipped.** Now reads
+- **Attribution string: fixed in source, ships in 1.0 (4).** Now reads
   `© openrouteservice by HeiGIT | Data from OpenStreetMap`, which is what
-  HeiGIT's terms specify. The shipped 1.0 (3) build still carries the old
-  wording — it credits both parties, so it was not worth pulling a live
-  submission for, but it is not the string they ask for. Goes out with the next
-  build. Note the required string also differs from what secondary sources
-  claim; the ToS is the only source worth trusting.
+  HeiGIT's terms specify. 1.0 (3) carried the old wording — it credited both
+  parties, so it was not worth pulling a live submission for, but it was not
+  the string they ask for. Confirmed rendering in the 1.0 (4) results screen.
+  Note the required string also differs from what secondary sources claim; the
+  ToS is the only source worth trusting.
 
 - **Bursty concurrency is the real licence risk, not who uses the app.** The
   usage limits section lists "sending requests too fast, i.e. too many requests
