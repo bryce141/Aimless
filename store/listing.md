@@ -121,8 +121,14 @@ Free.
 ## Support URL
 
 ```
-https://github.com/bryce141/Aimless
+https://bryce141.github.io/Aimless/
 ```
+
+**Not the repo README.** Guideline 1.5 rejected that on 2026-08-19: the URL
+loaded fine, but it was developer documentation with no contact address on it,
+so a user needing help had nowhere to go. The GitHub Pages support page in
+`docs/` answers real questions and carries an email address. Changed in App
+Store Connect on 2026-08-19.
 
 ## Privacy Policy URL
 

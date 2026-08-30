@@ -3,18 +3,16 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-24.
+Last updated 2026-08-27.
 
 ## Where this stands
 
-**Rejected three times on 1.0 (3). Build 1.0 (4) is uploaded to App Store
-Connect** and carries the first actual code fixes of the three rounds. The
-reply to the third rejection is at `store/review-reply-3.txt` and **was sent on
-2026-08-24**. Build 1.0 (4) is attached to the 1.0 version record.
+**Rejected four times. Build 1.0 (5) is prepared but not yet uploaded** — see
+"Rejected a fourth time" below for what is in it and what is still owed before
+it goes.
 
-**Waiting on App Review, fourth pass.**
-
-Three rejections. The first two were not code defects; the third was:
+Four rejections. The first two were not code defects; the third and fourth
+were:
 
 1. **2026-08-14, Guideline 2.1 Information Needed.** Wanted documentation the
    submission never carried, plus a screen recording on a physical device.
@@ -26,6 +24,10 @@ Three rejections. The first two were not code defects; the third was:
 3. **2026-08-23, Guideline 2.1(a).** "Nothing happened when we tapped on
    generate", on an iPad Air (5th generation). A real layout defect plus two
    compounding location bugs. Fixed in 1.0 (4) — see below.
+4. **2026-08-27, Guideline 2.1(a).** The same sentence again, on 1.0 (4), on an
+   iPad Air 11-inch (M3). The layout fix held; the alert that was supposed to
+   explain the blocked tap never appeared, and could never appear again. See
+   below.
 
 Worth carrying forward from the first round: **iOS does not capture system
 permission dialogs in screen recordings**, so the location alert cannot be
@@ -165,6 +167,91 @@ No physical iPad was available. The newest runtime installed is 26.5, so
 testing closer to the review configuration means downloading the iPadOS 26.6
 runtime first (~8-10 GB, and see the disk note in Environment).
 
+## Rejected a fourth time 2026-08-27, and what fixed it
+
+Guideline 2.1(a): **"nothing happened when we tapped on generate"**, word for
+word the third rejection. **iPad Air 11-inch (M3), iPadOS 26.6.1**, build
+1.0 (4), submission `0cd7fabf-eade-4dfa-a6a9-ce413df95702`.
+
+**The 1.0 (4) layout fix held.** Verified the same day on an iPad Air simulator:
+the button is fully visible in every location state, and the whole happy path
+works from Apple's own coordinates — 12/12 candidates, three loops, 77 min /
+24 mi / 7% highway from Cupertino. The clipping is genuinely gone.
+
+Two other things were wrong, and either one produces the reported symptom.
+
+### 1. The alert never appeared, and the button latched silent
+
+`GenerateView.generate()` raised its "Can't generate yet" alert by setting a
+`@State` **Bool** and letting `.alert(isPresented:)` present it. Two failures
+compounded:
+
+- SwiftUI **silently discards** an alert presentation while something else is
+  presenting. The system location permission prompt is presenting for exactly
+  the first seconds of the first launch, which is when a reviewer taps.
+- The flag then stayed `true`. Every later tap assigned `true` to a `true`
+  variable, which is not a state *change*, so SwiftUI was never asked to
+  present anything again. **The button was silent for the life of the screen.**
+
+Reproduced, not inferred. Four synthetic taps over 20 s on the iPad Air
+simulator, in two configurations (permission undecided, permission revoked):
+`blocked=true` from the first tap onward, and no alert on screen at any point.
+
+**Fixed by not using a presentation at all.** The state is now an optional
+`BlockNote?` — a fresh value per tap, so it cannot latch — and it renders as an
+inline callout above the button, which draws underneath a system alert instead
+of losing to it.
+
+**And by making the tap mean something.** A tap without a fix now *queues* the
+generate: the button changes to a "Finding you..." spinner and the generate
+fires by itself the moment the fix lands, with a 15-second backstop that falls
+back to an explicit error and a Try Again. On a Wi-Fi-only iPad, where a fix
+takes seconds and the reviewer taps immediately, this turns the exact reported
+scenario into a result. Verified on the simulator: tapped with the permission
+prompt still up, and it produced three loops.
+
+### 2. HeiGIT cut the daily quota from 2000 to 200
+
+Measured 2026-08-27 against the live Worker: `x-ratelimit-limit: 200`. On
+2026-08-23 the same header read 2000. Nothing on our side changed it.
+
+At 18-36 requests per generate that is **five to ten generates per day for every
+install combined**. Two generates during testing took the remaining budget from
+153 to 77 in twelve minutes. When it runs out every seed fails, and the app said
+"Couldn't build any loops from here" in one grey line the same weight as the
+picker caption — which is also fairly described as nothing happening.
+
+Three changes, in increasing order of how much they actually help:
+
+- `ORSHTTPError.isRateLimit` now covers **403 as well as 429**, so a quota
+  refusal reads as "come back later" instead of blaming the user's geography.
+- Errors from a failed generate now render in the same loud callout as
+  everything else, instead of a grey line.
+- **California is being added to the self-hosted graph.** Every review so far
+  has been near Cupertino and every one of those generates went to HeiGIT. See
+  `selfhost/DEPLOY.md`, "Widening coverage" — build the graph first, widen
+  `SELF_HOSTED_REGIONS` second.
+
+### 3. The Worker had no logs, which is why round four was inference
+
+`worker/wrangler.toml` had no `[observability]` block, so there was no record of
+whether the review device ever reached the Worker or what it was told. Now
+enabled at `head_sampling_rate = 1`, with one structured line per request:
+status, cache hit/miss, which backend answered, and the remaining upstream
+quota. **No coordinates** — `PRIVACY.md` promises the Worker does not store
+them, and it now describes this logging explicitly.
+
+### Still owed before 1.0 (5) goes up
+
+1. Build the California graph on the Oracle box, then set
+   `SELF_HOSTED_REGIONS = "nj,ca"` and deploy the Worker.
+2. Archive and upload 1.0 (5). The build number is already bumped in the
+   project.
+3. Send the reply at `store/review-reply-4.txt`. **It must go after step 1**,
+   because it tells Apple that routing for their region has been moved onto our
+   own infrastructure. That sentence is true only once the California graph is
+   built and `SELF_HOSTED_REGIONS` includes `ca`.
+
 ## What happens when Apple replies
 
 1. **Approved** — next build is 1.0.1 with a fresh build number.
@@ -203,9 +290,18 @@ limits, in different units, and they have nothing to do with each other.**
 | | What it is | Limit | Fixed by |
 |---|---|---|---|
 | Cloudflare Worker | Our reverse proxy, hosted by Cloudflare | 100k requests/day = **~5,500 generates/day** | $5/month |
-| Routing backend | Whoever computes the routes | HeiGIT: 40 req/min = **~2 generates/min** | Oracle box |
+| Routing backend, per minute | Whoever computes the routes | HeiGIT: 40 req/min = **~2 generates/min** | Oracle box |
+| Routing backend, per day | The same provider, separate counter | HeiGIT: 200 req/day = **~5-10 generates/day** | Oracle box |
 
-One generate costs ~18 requests, which is where both conversions come from.
+One generate costs ~18 requests, or up to 36 with a retry round, which is where
+all three conversions come from.
+
+**The daily row is new and it is now the binding one.** It read 2000/day on
+2026-08-23 and 200/day on 2026-08-27; HeiGIT cut it, not us. At 200 the app
+supports single-digit generates per day across every install on earth, which is
+less than a single App Review pass consumes. Everything below this table was
+written when the per-minute limit was the constraint and should be read that
+way.
 
 Whichever number is tighter is the one that actually stops you. Today that is
 HeiGIT's 2/minute — the daily cap is unreachable behind it. Stand up the Oracle

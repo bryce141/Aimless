@@ -1,6 +1,6 @@
 # Privacy Policy for Aimless
 
-Last updated: 8 August 2026
+Last updated: 27 August 2026
 
 Aimless has no accounts, no analytics, no advertising, and no third-party
 tracking SDKs. It stores nothing about you, on your device or anywhere else.
@@ -31,6 +31,12 @@ Nothing else is transmitted. No device identifier, no name, no email, no
 advertising ID — nothing that identifies you or your device is attached to the
 request. The coordinates are used to compute a route and are not stored by the
 app or by the developer's Worker.
+
+The developer's Worker keeps a short-term operational log of each request, to
+diagnose failures. It records the HTTP status of the reply, whether the answer
+came from cache, which routing backend served it, and how much of the routing
+provider's allowance remains. **It does not record your coordinates, and no
+entry can be tied back to you by anything the app sends.**
 
 Cloudflare and HeiGIT operate their own infrastructure and may keep standard
 service logs under their own policies:

@@ -1,0 +1,90 @@
+Hello,
+
+Thank you for testing again, and for naming the review device — that detail is
+what made this one findable.
+
+The fix in build 1.0 (4) was real but incomplete. It corrected the layout, and
+we have confirmed the Generate button is now fully visible on iPad in every
+state. It did not correct a second, separate defect that produces the identical
+symptom, and that defect is what you encountered. It is fixed in build 1.0 (5).
+
+
+GUIDELINE 2.1(a) — nothing happened when tapping Generate
+
+When Generate is tapped before the app has a location fix, build 1.0 (4) was
+supposed to display an alert explaining what was needed. That alert could not
+appear, for two reasons that compound:
+
+1. iOS does not present an app's alert while another alert is already on
+   screen. The system location permission prompt is on screen during exactly
+   the first seconds of first launch — which is when Generate is first tapped.
+   Our alert was requested during that window and was discarded.
+
+2. The app tracked "an explanation is owed" as a single true/false flag. Once
+   it had been set and the alert was discarded, the flag stayed set, so every
+   later tap set it to the value it already held. That is not a change, so the
+   app never asked to present anything again. From that point the button was
+   silent for as long as the screen stayed open.
+
+We reproduced this on an iPad Air simulator running iPadOS 26, in both of the
+states a reviewer would be in — permission not yet answered, and permission
+declined. In both, the first tap and every tap after it produced nothing
+whatsoever on screen. That is the behavior you reported, and we are sorry it
+survived into a second review.
+
+
+WHAT CHANGED IN 1.0 (5)
+
+We did not repair the alert. We removed the app's dependence on alerts for this
+entirely, and changed what a tap does.
+
+- A tap made before the app has a location fix is no longer refused. The app
+  now remembers it, shows "Finding you..." with a progress indicator on the
+  button itself, and generates automatically the moment the fix arrives. In the
+  case you hit — tapping immediately on first launch — the result is now three
+  routes rather than nothing. This matters most on iPad: Wi-Fi-only iPad models
+  have no GPS receiver and derive position from nearby Wi-Fi networks, so the
+  wait between opening the app and having a usable position is routinely
+  several seconds.
+
+- If a fix genuinely cannot be obtained within 15 seconds, or if location access
+  is off, the app explains that in a message drawn directly on the screen,
+  above the button, with a Try Again or Open Settings control. Ordinary on-screen
+  content draws correctly underneath a system prompt, where an alert cannot.
+
+- Every tap now produces an immediate visible change and haptic feedback. There
+  is no longer any state in which tapping Generate does nothing.
+
+We also improved a second failure that could look the same to a tester. Our
+routing provider reduced the daily request allowance on our account by a factor
+of ten earlier this week. When that allowance is exhausted, route generation
+fails, and the app previously reported that in small text that was easy to miss.
+Such failures are now shown in the same prominent message as everything else,
+and we have moved routing for the region your review devices have been in onto
+our own infrastructure, which has no such allowance.
+
+
+VERIFICATION
+
+Reproduced the fault and confirmed the fix on an iPad Air simulator running
+iPadOS 26, in the same iPhone-compatibility window your device uses:
+
+  Before:  tapped Generate four times over twenty seconds with no location
+           fix. Nothing appeared on screen at any point, and the internal
+           state confirmed the explanation had been suppressed permanently
+           after the first tap.
+
+  After:   the same tap immediately changes the button to "Finding you...",
+           and generation completes on its own once the fix lands — three
+           routes, from coordinates in Cupertino, California.
+
+We also confirmed the layout correction from 1.0 (4) is holding: the title,
+map, duration control, message area and Generate button are all fully visible,
+with no clipping, in every location state.
+
+
+We are glad to provide a screen recording or any other information that would
+help. Thank you for your patience across these rounds.
+
+Best regards,
+Bryce Percoco

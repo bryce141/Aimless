@@ -58,6 +58,11 @@ Neither restricts commercial or production use. The app displays the required
 attribution on the results screen; MapKit renders its own base map credit.
 
 OPERATIONAL NOTE
-One generation issues ~18 routing requests, up to 36 with a retry, against a
-provider limit of 40/minute. Generating several times in quick succession may
-show a rate-limit message; this is expected and clears after a minute.
+One generation issues ~18 routing requests, up to 36 with a retry. Routing in
+California and New Jersey is served from our own infrastructure, which has no
+request limit; everywhere else uses openrouteservice. Results are cached, so
+generating repeatedly from the same spot costs nothing after the first.
+
+If the app is opened and Generate is tapped before a location fix has arrived,
+the button shows "Finding you..." and the routes appear on their own as soon as
+the fix lands. No second tap is needed.
