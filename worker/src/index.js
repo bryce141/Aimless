@@ -20,21 +20,50 @@ const ALLOWED_PATH = "/v2/directions/driving-car/geojson";
 const MAX_BODY_BYTES = 8 * 1024;
 
 /**
- * New Jersey's bounding box, used to decide whether a request can be served by
- * our own routing instance.
+ * Where our own routing instance is allowed to answer.
  *
- * This is deliberately NJ and not the box our graph actually covers. The graph
- * holds NJ plus Pennsylvania, New York and Delaware, which puts its nearest
- * edge hundreds of kilometres from anywhere in New Jersey. That margin is the
- * point: a route generated near the edge of a graph gets silently clipped
- * against roads that stop existing, and returns a plausible-looking loop that
- * is simply too short. Measured from a NJ-only graph, an origin in the
- * north-west corner came back 19% short with no error at all.
+ * Each box is deliberately *smaller* than the graph behind it. A route
+ * generated near the edge of a graph gets silently clipped against roads that
+ * stop existing and returns a plausible-looking loop that is simply too short —
+ * measured from a NJ-only graph, an origin in the north-west corner came back
+ * 19% short with no error at all. So each entry is inset far enough from the
+ * graph's real edge that a 100 km round trip cannot reach it, and HeiGIT, who
+ * host the whole planet, keeps everywhere else.
  *
- * So: route locally only where we have room to spare, and let HeiGIT — who host
- * the whole planet — handle everywhere else.
+ * - `nj`  NJ only, against a graph holding NJ + PA + NY + DE. Nearest graph
+ *         edge is hundreds of kilometres away. Shipped and measured 2026-08-20.
+ * - `ca`  California, inset from the land borders it shares with Oregon,
+ *         Nevada, Arizona and Mexico — roughly 65 km at the north edge and far
+ *         more elsewhere. The west edge is the Pacific, which is a real end of
+ *         the road network rather than an artefact of the extract, so it needs
+ *         no inset. San Diego falls outside on purpose: it sits 22 km from the
+ *         Mexican border, well inside the clipping distance.
+ *
+ * Which of these are live is `SELF_HOSTED_REGIONS`, not this table — see
+ * `coveredRegions`. Adding a box here does not route anything to it.
  */
-const NJ_BBOX = { minLon: -75.56, maxLon: -73.89, minLat: 38.93, maxLat: 41.36 };
+const REGIONS = {
+  nj: { minLon: -75.56, maxLon: -73.89, minLat: 38.93, maxLat: 41.36 },
+  ca: { minLon: -124.4, maxLon: -117.5, minLat: 33.5, maxLat: 41.4 },
+};
+
+/**
+ * The regions our instance currently has a graph for, as a comma-separated list
+ * in `SELF_HOSTED_REGIONS` — for example `nj,ca`. Unset means `nj`, which is
+ * what was live before this setting existed.
+ *
+ * Coverage is configuration rather than code because the graph and the routing
+ * rule have to change together, and only one of them is a deploy. Building a
+ * new extract on the box takes hours and can fail; flipping a region on before
+ * its graph exists would route those users into 404s. So the box gets built
+ * first, and this is turned on afterwards, with no code change between them.
+ */
+function coveredRegions(env) {
+  const raw = (env.SELF_HOSTED_REGIONS ?? "nj").split(",");
+  return raw
+    .map((name) => REGIONS[name.trim()])
+    .filter(Boolean);
+}
 
 /**
  * How long to wait on our own instance before giving up and using HeiGIT.
@@ -99,6 +128,11 @@ export default {
     if (cached) {
       const headers = new Headers(cached.headers);
       headers.set("X-Aimless-Cache", "hit");
+      logOutcome({
+        servedBy: headers.get("X-Aimless-Served-By") ?? "cache",
+        status: 200,
+        cache: "hit",
+      });
       return new Response(cached.body, { status: 200, headers });
     }
 
@@ -106,7 +140,7 @@ export default {
     // somewhere it covers well. Unset SELF_HOSTED_ORIGIN and everything goes to
     // HeiGIT exactly as it always has — which is what makes deploying this safe
     // before any server exists.
-    if (env.SELF_HOSTED_ORIGIN && originIsInNewJersey(body)) {
+    if (env.SELF_HOSTED_ORIGIN && originIsCovered(body, coveredRegions(env))) {
       const local = await trySelfHosted(
         env.SELF_HOSTED_ORIGIN, body, env.SELF_HOSTED_TOKEN, store);
       if (local) return local;
@@ -169,7 +203,8 @@ async function trySelfHosted(origin, body, token, store) {
 }
 
 /**
- * Reads the request's starting coordinate and says whether it's in New Jersey.
+ * Reads the request's starting coordinate and says whether any covered region
+ * contains it.
  *
  * Both request shapes the app sends put the origin first: `round_trip` sends a
  * single [lon, lat], and the verification reroute sends origin, waypoints, then
@@ -179,16 +214,15 @@ async function trySelfHosted(origin, body, token, store) {
  * Anything unparseable answers false and goes to HeiGIT. Guessing wrong in that
  * direction costs latency; guessing wrong the other way costs a wrong route.
  */
-function originIsInNewJersey(body) {
+function originIsCovered(body, regions) {
   try {
     const first = JSON.parse(body)?.coordinates?.[0];
     if (!Array.isArray(first) || first.length < 2) return false;
     const [lon, lat] = first;
-    return (
-      lon >= NJ_BBOX.minLon &&
-      lon <= NJ_BBOX.maxLon &&
-      lat >= NJ_BBOX.minLat &&
-      lat <= NJ_BBOX.maxLat
+    return regions.some(
+      (b) =>
+        lon >= b.minLon && lon <= b.maxLon &&
+        lat >= b.minLat && lat <= b.maxLat
     );
   } catch (e) {
     return false;
@@ -223,6 +257,14 @@ function passThrough(upstream, servedBy, store) {
     }
   }
   headers.set("X-Aimless-Cache", "miss");
+
+  logOutcome({
+    servedBy,
+    status: upstream.status,
+    cache: "miss",
+    quotaRemaining: upstream.headers.get("x-ratelimit-remaining"),
+    quotaLimit: upstream.headers.get("x-ratelimit-limit"),
+  });
 
   // Only 200s are worth keeping. A 429 cached for a day would outlive the
   // minute it belongs to, and a 404 is one dead seed rather than a fact about
@@ -262,6 +304,25 @@ async function cacheKeyFor(body) {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
   return new Request(`https://aimless-cache.invalid/${hex}`, { method: "GET" });
+}
+
+/**
+ * One line per request, so the next "nothing happened when we tapped generate"
+ * can be answered from data instead of reconstructed from a screenshot.
+ *
+ * The three questions this has to answer are whether the app reached us at all,
+ * what we replied, and how much upstream allowance was left — which is exactly
+ * what could not be checked after the 2026-08-27 rejection, because the Worker
+ * had no logs enabled at all.
+ *
+ * **No coordinates, and nothing derived from them beyond which backend
+ * answered.** PRIVACY.md promises the Worker does not store the coordinates it
+ * forwards, and a log line is storage. `servedBy` is the one location-adjacent
+ * field here, it is coarse to the scale of a US state, and the privacy policy
+ * names it explicitly.
+ */
+function logOutcome(fields) {
+  console.log(JSON.stringify({ event: "route", ...fields }));
 }
 
 function json(status, message) {

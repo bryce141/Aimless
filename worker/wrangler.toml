@@ -8,3 +8,23 @@ compatibility_date = "2026-08-08"
 #
 # CLIENT_TOKEN is optional. If unset, the Worker accepts any caller; if set, the
 # app must send a matching X-Aimless-Client header.
+
+# Which regions our own routing instance has a graph for, as a comma-separated
+# list. Unset behaves as "nj", which is what was live before this existed.
+#
+# This is a var rather than a code constant because coverage and the graph on
+# the box have to change together and only one of them is a deploy: the extract
+# is built first, this is widened second. See REGIONS in src/index.js.
+[vars]
+SELF_HOSTED_REGIONS = "nj"
+
+# Workers Logs. Off until 2026-08-27, which is why the fourth App Review
+# rejection could not be checked against anything — there was no record of
+# whether the review device ever reached the Worker, or what it was told.
+#
+# head_sampling_rate = 1 keeps every request. At this app's volume that is a
+# rounding error, and sampling the one request that matters out of the record is
+# exactly the failure this is here to prevent.
+[observability]
+enabled = true
+head_sampling_rate = 1

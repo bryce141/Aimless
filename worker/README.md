@@ -115,6 +115,46 @@ already on its way, and the cache is per-datacentre rather than global.
 Generate repeatedly hit the rate limit and saw an error. It is server-side, so
 it shipped without a new build.
 
+### The ceiling moved, and caching no longer covers it
+
+**HeiGIT's daily allowance on our key read 2000 on 2026-08-23 and 200 on
+2026-08-27.** Same key, same plan, no change on our side. The per-minute limit
+this cache was built for is no longer the one that bites.
+
+At 18-36 requests per generate, 200/day is five to ten generates a day across
+every install. Caching only helps a *repeat* of an identical request, and the
+first generate from any given spot is always a full-price miss, so it does
+nothing for the ceiling that now matters.
+
+The answer is coverage, not caching: every origin the self-hosted box serves is
+an origin that spends no allowance at all. See `SELF_HOSTED_REGIONS` below and
+`selfhost/DEPLOY.md`.
+
+## Regions
+
+`SELF_HOSTED_REGIONS` is a comma-separated list of the region keys in `REGIONS`
+— today `nj` and `ca`. Unset behaves as `nj`.
+
+Each box is deliberately smaller than the graph behind it, because a route
+generated near a graph's edge is clipped against roads that stop existing and
+comes back plausible-looking and too short, with no error. Widening this
+variable before the box has a graph for that region does not break users — a
+non-200 from our instance falls through to HeiGIT — but it doubles the upstream
+cost of every request in it, so build the graph first.
+
+## Observability
+
+`[observability]` is on at `head_sampling_rate = 1`, and the Worker writes one
+structured line per request: status, cache hit/miss, which backend answered, and
+the upstream quota remaining.
+
+It was off until 2026-08-27. That is why the fourth App Review rejection had to
+be diagnosed from a screenshot and a simulator rather than from the record of
+what the review device actually asked for and was told.
+
+**Deliberately no coordinates.** `PRIVACY.md` states the Worker does not store
+the coordinates it forwards, and a retained log line is storage.
+
 ## Self-hosted origin auth
 
 `SELF_HOSTED_TOKEN` is sent to our own instance as `X-Aimless-Origin`. An nginx
