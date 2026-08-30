@@ -236,11 +236,67 @@ docker compose down
 # hour to tell you it failed; without this there is nothing to fall back to.
 mv graphs graphs.nj-only
 
-./fetch-extract.sh          # ~2.2 GB down, merges NJ + PA + NY + DE + CA
+./fetch-extract.sh          # merges the northeast bundle + CA into coverage.osm.pbf
 sed -i 's/REBUILD_GRAPHS: "False"/REBUILD_GRAPHS: "True"/' docker-compose.yml
 docker compose up -d
 docker compose logs -f
 ```
+
+**Do the fetch before the `down`, not after.** The script only touches `data/`,
+so it is safe to run against a live instance, and it means the box is out of
+service for the build alone rather than for the download as well. The order
+above is the cautious one; the order actually used on 2026-08-30 was fetch
+first, and it is better.
+
+#### Everything comes from Geofabrik. Do not substitute a mirror.
+
+**This cost two failed builds and about two hours on 2026-08-30.** Geofabrik was
+down that afternoon — their own squid front-end returning `ERR_CONNECT_FAIL` to
+its backend, 503 then 502, unreachable from two networks — so California was
+taken from the OpenStreetMap France mirror instead. Both builds died four to
+five minutes in with:
+
+```
+java.lang.RuntimeException: Could not parse OSM file: /home/ors/files/coverage.osm.pbf
+```
+
+ORS logs that message and swallows the cause, so there is no stack trace and
+nothing names the offending object. The cause was found by running
+`osmium check-refs -r` against the extract that *was* serving and comparing:
+
+| | nodes in ways missing |
+|---|---|
+| Geofabrik northeast bundle — serving at the time | **0** |
+| OpenStreetMap France California | **13,085** |
+
+Geofabrik clips with **complete ways**: every node referenced by an included way
+is in the file. OSMfr clips differently. GraphHopper reads a way, looks for a
+node that was never included, and fails the entire build. The file is a
+perfectly valid PBF and `osmium fileinfo` reports nothing wrong — only
+`check-refs` sees it.
+
+`fetch-extract.sh` now runs that check on every input before any build, and
+refuses to produce an extract that would fail. **If Geofabrik is down again,
+wait.** Substituting is what cost the two hours; waiting would have cost less.
+
+While that was being chased, one real bug was found and fixed. The two extracts
+were generated ten days apart, so six continent-spanning relations appeared in
+both at different versions — including `r148838`, the United States national
+boundary, edited on 2026-08-25 between the two. `osmium merge` keeps both, the
+PBF header still says "not a history file", and GraphHopper rejects that too.
+The script now drops duplicates from the older input before merging.
+
+Only relations need that treatment, and it is a fact about geometry rather than
+a shortcut: a node has a location and a way is a list of nodes, so neither can
+appear in two extracts that do not overlap; a relation is only a membership
+list. The 2026-08-30 merge bore that out exactly — node and way counts were
+perfectly additive at 290,651,982 and 32,033,580, with the entire overlap being
+six relations out of 367,633.
+
+One thing that looks alarming in `osmium fileinfo` and is not: **the merged
+bounding box reaches latitude -26 and longitude -4.** That is pre-existing in
+`nj-region.osm.pbf`, the file the graph was built from before California — a few
+stray far-flung nodes in the Geofabrik bundle. California did not introduce it.
 
 Watch for two things and nothing else: the heap staying inside `XMX: 8g`, and
 the build finishing rather than dying. The north-east extract alone took 1742 s
@@ -274,6 +330,24 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 200 means covered. Repeat for a New Jersey origin to confirm nothing regressed —
 the whole point of the merge is that both components survive it.
 
+**Measured 2026-08-30, against a baseline taken before the rebuild:**
+
+| origin | before | after |
+|---|---|---|
+| Cupertino / Apple Park | 404 | **200** — 47,653 m / 5,086 s |
+| Los Angeles | 404 | **200** — 42,855 m / 4,266 s |
+| Sacramento | 404 | **200** — 54,579 m / 4,907 s |
+| Marlboro, NJ | 200 — 53,113 m / 5,655 s | **200 — 53,113 m / 5,655 s** |
+| Chicago | 404 | 404 — correct, HeiGIT's job |
+
+New Jersey came back identical to the metre and the second, which is the
+regression check passing rather than a coincidence: the same seed against the
+same road data must produce the same loop, and it did.
+
+The build itself took **48m14s** with a peak of 4.85 GB against the 8 GB heap,
+and produced a 2.5 GB graph. Take the baseline *before* `docker compose down` —
+a 404 recorded afterwards proves nothing, because a stopped instance 404s too.
+
 ### 3. Widen the Worker
 
 ```
@@ -303,3 +377,33 @@ curl -sD - -o /dev/null -X POST \
 Set `SELF_HOSTED_REGIONS` back to `nj` and deploy. That is a ten-second change
 with no app release behind it, and it is the right first move if California
 routes ever look wrong — the graph can be investigated afterwards.
+
+### Rolling back a *failed build*, which is different
+
+A build that dies leaves a partial `graphs/` written by the container as **root**,
+so the obvious cleanup fails:
+
+```
+rm: cannot remove 'graphs/driving-car/edges': Permission denied
+```
+
+Worse, in a script under `set -e` that non-zero exit aborts the rest of the
+rollback, and the instance stays down while appearing to have been restored.
+That happened on 2026-08-30 and is the reason this section exists. Use:
+
+```
+cd ~/selfhost
+sudo rm -rf graphs                       # root-owned; sudo is required
+mv graphs.nj-only graphs
+sed -i 's#source_file: /home/ors/files/coverage.osm.pbf#source_file: /home/ors/files/nj-region.osm.pbf#' ors-config.yml
+sed -i 's/REBUILD_GRAPHS: "True"/REBUILD_GRAPHS: "False"/' docker-compose.yml
+docker compose up -d
+```
+
+**Both `sed`s matter.** Restoring the graph without restoring `source_file`
+leaves the config pointing at an extract that may not exist. Then confirm with a
+New Jersey route rather than assuming — health returning `ready` only means the
+JVM started.
+
+`fetch-extract.sh` keeps both `nj-region.osm.pbf` and `california.osm.pbf`
+rather than deleting them after the merge, so none of this needs a download.
