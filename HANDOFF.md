@@ -3,13 +3,20 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-27.
+Last updated 2026-08-30.
 
 ## Where this stands
 
-**Rejected four times. Build 1.0 (5) is prepared but not yet uploaded** — see
-"Rejected a fourth time" below for what is in it and what is still owed before
-it goes.
+**Rejected four times. Build 1.0 (5) is uploaded and the reply to the fourth
+rejection was sent on 2026-08-30.**
+
+**Waiting on App Review, fifth pass.**
+
+Everything that was owed before 1.0 (5) could go is done. California is served
+from our own box, the Worker routes it there, the build is up, and the reply —
+which claims exactly that — went out afterwards, in that order. See "Rejected a
+fourth time" below for what is in the build and "Widening coverage" in
+`selfhost/DEPLOY.md` for how the graph was built.
 
 Four rejections. The first two were not code defects; the third and fourth
 were:
@@ -241,16 +248,42 @@ status, cache hit/miss, which backend answered, and the remaining upstream
 quota. **No coordinates** — `PRIVACY.md` promises the Worker does not store
 them, and it now describes this logging explicitly.
 
-### Still owed before 1.0 (5) goes up
+### All of this was done on 2026-08-30, in this order
 
-1. Build the California graph on the Oracle box, then set
-   `SELF_HOSTED_REGIONS = "nj,ca"` and deploy the Worker.
-2. Archive and upload 1.0 (5). The build number is already bumped in the
-   project.
-3. Send the reply at `store/review-reply-4.txt`. **It must go after step 1**,
-   because it tells Apple that routing for their region has been moved onto our
-   own infrastructure. That sentence is true only once the California graph is
-   built and `SELF_HOSTED_REGIONS` includes `ca`.
+1. **California graph built and serving.** Took three attempts and about four
+   hours; the two failures are worth reading before touching the extract again,
+   and they are written up in `selfhost/DEPLOY.md` under "Widening coverage".
+   Short version: Geofabrik was down, the mirror substituted for it clips
+   without complete ways, and GraphHopper rejects such a file after four
+   minutes without naming a cause. `fetch-extract.sh` now checks for that, and
+   for the duplicate-relation problem that a version skew between two extracts
+   creates. Final build: 48m14s, 4.85 GB peak against an 8 GB heap, 2.5 GB
+   graph.
+2. **Worker widened.** `SELF_HOSTED_REGIONS = "nj,ca"`, deployed and verified
+   from outside with fresh seeds: Cupertino, Los Angeles, Sacramento and
+   Marlboro NJ all return `X-Aimless-Served-By: self`; Chicago and San Diego
+   return `heigit`. San Diego is outside the served box on purpose — it sits
+   22 km from the Mexican border, inside the clipping distance.
+3. **Build 1.0 (5) archived and uploaded**, and attached to the 1.0 version
+   record.
+4. **Reply sent**, after the above rather than before, because it tells Apple
+   routing for their region now runs on our own infrastructure. That became
+   true at step 2 and not a moment earlier.
+
+The New Jersey rollback graph is still on the box at `~/selfhost/graphs.nj-only`
+(1.3 GB). Delete it once California has been serving for a few days without
+complaint; until then it is a two-minute restore.
+
+### App Store Connect field limits, both learned the hard way
+
+Two different fields, two different caps, and neither is documented where you
+are typing:
+
+- **Reply to App Review: 4,000 characters.** `store/review-reply-4.txt` was
+  written at 4,370 and had to be cut on the spot. It is now 3,920.
+- **Review notes** are much tighter — that is what the 2026-08-14 round hit.
+
+Write to fit rather than trimming under time pressure. `wc -m` before pasting.
 
 ## What happens when Apple replies
 
@@ -296,17 +329,23 @@ limits, in different units, and they have nothing to do with each other.**
 One generate costs ~18 requests, or up to 36 with a retry round, which is where
 all three conversions come from.
 
-**The daily row is new and it is now the binding one.** It read 2000/day on
-2026-08-23 and 200/day on 2026-08-27; HeiGIT cut it, not us. At 200 the app
-supports single-digit generates per day across every install on earth, which is
-less than a single App Review pass consumes. Everything below this table was
-written when the per-minute limit was the constraint and should be read that
-way.
+**Both HeiGIT rows only apply outside New Jersey and California now.** Since
+2026-08-30 those two states are served by our own box, which has no request
+limit of either kind. Origins anywhere else still spend HeiGIT's allowance, and
+that allowance is small: it read 2000/day on 2026-08-23 and 200/day on
+2026-08-27, cut by HeiGIT rather than by us.
 
-Whichever number is tighter is the one that actually stops you. Today that is
-HeiGIT's 2/minute — the daily cap is unreachable behind it. Stand up the Oracle
-box and the per-minute ceiling goes to roughly 30-60/min, at which point the
-5,500/day becomes the binding one.
+So the honest statement of the ceiling is now geographic rather than numeric.
+Inside the two served states the app is effectively unlimited. Outside them it
+supports single-digit generates per day across every install on earth — less
+than one App Review pass consumes. **That is the number to widen coverage
+against**, and the reason to add a region is that people are in it, not that the
+graph would be interesting.
+
+Whichever number is tighter is the one that actually stops you. Outside the
+served states that is HeiGIT's 200/day. Inside them the binding limit is the
+Worker's 5,500 generates/day, which is a $5/month problem rather than an
+engineering one.
 
 In users: **roughly 100 today, roughly 2,500 with Oracle.** A hundred people
 generating twice on a Saturday morning is 3.3/minute against a ceiling of 2 —
