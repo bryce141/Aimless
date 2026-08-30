@@ -21,10 +21,11 @@ ors:
 
     profile_default:
       build:
-        # NJ + PA + NY + DE, merged with osmium. New Jersey needs its
+        # NJ + PA + NY + DE + CA, merged with osmium. New Jersey needs its
         # neighbours in the graph or routes near the state line get clipped
-        # against roads that simply stop existing. See fetch-extract.sh.
-        source_file: /home/ors/files/nj-region.osm.pbf
+        # against roads that simply stop existing; California is served inset
+        # from its own borders instead. See fetch-extract.sh.
+        source_file: /home/ors/files/coverage.osm.pbf
 
     profiles:
       driving-car:

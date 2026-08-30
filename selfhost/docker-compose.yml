@@ -20,8 +20,13 @@ services:
       # present, startup is seconds instead of the full build.
       REBUILD_GRAPHS: "False"
       # Heap. The graph build is the memory-hungry phase, not serving.
+      #
+      # 8g, not 4g. Peak heap was 1.96 GB for the 1 GB north-east extract, and
+      # adding California roughly doubles the input — 4g left no headroom for a
+      # build that takes over an hour to find out. The box has 12 GB, and a
+      # heap this size is only actually claimed while building.
       XMS: 2g
-      XMX: 4g
+      XMX: 8g
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/ors/v2/health"]
       interval: 15s

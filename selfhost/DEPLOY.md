@@ -189,3 +189,117 @@ HeiGIT immediately, with no app change and no review.
   is raised in `ors-config.yml`, which makes a 3-hour option possible — but only
   for New Jersey origins, so the app cannot offer it without the option
   disappearing for everyone else. Product decision, not a deploy step.
+
+## Widening coverage — New Jersey plus California
+
+Added 2026-08-27, after the fourth rejection.
+
+**Why California.** Four App Review passes, four iPads, all of them around
+Cupertino — and every one of those generates went to HeiGIT, because the only
+region we serve is New Jersey. That matters much more than it did in August:
+HeiGIT's daily allowance on our key reads **200**, down from the 2000 measured
+on 2026-08-23. One generate costs 18-36 requests, so the whole app now gets
+roughly five to ten generates a day, worldwide, before every seed fails. Review
+can exhaust it without trying.
+
+Serving California ourselves takes the reviewer — and, incidentally, the largest
+state in the country — off that ceiling entirely.
+
+### The order matters
+
+The graph is built first and the Worker is widened second. Flipping
+`SELF_HOSTED_REGIONS` to `nj,ca` before the graph covers California routes those
+users into 404s on our own box, and the Worker treats a non-200 from us as a
+reason to retry HeiGIT — so the user still gets a route, but every California
+request costs *two* upstream calls instead of one. Build first.
+
+### 1. Push the tree and rebuild the graph
+
+The rebuild takes the instance out of service for an hour or more. That is safe:
+the Worker falls back to HeiGIT on a dead socket, which is the same path
+California is on today.
+
+From the Mac:
+
+```
+rsync -av --exclude data --exclude graphs --exclude elevation_cache \
+      --exclude logs selfhost/ ubuntu@129.213.20.151:~/selfhost/
+```
+
+On the box:
+
+```
+cd ~/selfhost
+docker compose down
+
+# Keep the working graph. The rebuild overwrites in place and takes over an
+# hour to tell you it failed; without this there is nothing to fall back to.
+mv graphs graphs.nj-only
+
+./fetch-extract.sh          # ~2.2 GB down, merges NJ + PA + NY + DE + CA
+sed -i 's/REBUILD_GRAPHS: "False"/REBUILD_GRAPHS: "True"/' docker-compose.yml
+docker compose up -d
+docker compose logs -f
+```
+
+Watch for two things and nothing else: the heap staying inside `XMX: 8g`, and
+the build finishing rather than dying. The north-east extract alone took 1742 s
+on these two Ampere cores; budget well over an hour for roughly twice the input,
+and do not interrupt it.
+
+When it is healthy, put `REBUILD_GRAPHS` back to `"False"` — otherwise every
+future restart rebuilds from scratch — and free the old graph once you believe
+the new one:
+
+```
+sed -i 's/REBUILD_GRAPHS: "True"/REBUILD_GRAPHS: "False"/' docker-compose.yml
+curl localhost:8080/ors/v2/health
+rm -rf graphs.nj-only
+```
+
+### 2. Prove California routes before pointing anything at it
+
+A healthy instance is not a covered one — a graph missing California answers 404
+rather than erroring, which is indistinguishable from an ordinary dead seed.
+Ask it directly, from Apple's own coordinates:
+
+```
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST localhost:8080/ors/v2/directions/driving-car/geojson \
+  -H 'Content-Type: application/json' \
+  -d '{"coordinates":[[-122.0312,37.3318]],
+       "options":{"round_trip":{"length":33000,"points":8,"seed":1}}}'
+```
+
+200 means covered. Repeat for a New Jersey origin to confirm nothing regressed —
+the whole point of the merge is that both components survive it.
+
+### 3. Widen the Worker
+
+```
+# worker/wrangler.toml
+[vars]
+SELF_HOSTED_REGIONS = "nj,ca"
+```
+
+```
+cd worker && npx wrangler deploy
+```
+
+Verify from outside, with a fresh seed so nothing comes from cache. The header
+must read `self` for both regions and `heigit` for anywhere else:
+
+```
+curl -sD - -o /dev/null -X POST \
+  https://aimless-routing.bdrp777.workers.dev/v2/directions/driving-car/geojson \
+  -H "X-Aimless-Client: $CLIENT_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"coordinates":[[-122.0312,37.3318]],
+       "options":{"round_trip":{"length":33000,"points":8,"seed":777}}}' \
+  | grep -i x-aimless
+```
+
+### Rolling back
+
+Set `SELF_HOSTED_REGIONS` back to `nj` and deploy. That is a ten-second change
+with no app release behind it, and it is the right first move if California
+routes ever look wrong — the graph can be investigated afterwards.
