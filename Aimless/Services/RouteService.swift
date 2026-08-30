@@ -4,8 +4,11 @@ import Foundation
 enum RouteServiceError: LocalizedError {
     /// Every seed failed. Distinct from "some failed", which is normal and swallowed.
     case allSeedsFailed(lastMessage: String?)
-    /// ORS free tier allows 40 requests/minute. One generate costs ~18, so two
-    /// back-to-back are fine and three are not.
+    /// The routing service refused on quota grounds rather than on the merits
+    /// of the request. Covers both ceilings: ~40 requests/minute, and a daily
+    /// allowance that HeiGIT cut from 2000 to **200** some time before
+    /// 2026-08-27. One generate costs 18-36 requests, so the daily one is now
+    /// the binding constraint and it is shared across every install.
     case rateLimited
     /// No usable connection. Worth its own case for the same reason
     /// `rateLimited` is: a dead network looks exactly like a dead origin, and
@@ -19,7 +22,7 @@ enum RouteServiceError: LocalizedError {
             return "Couldn't build any loops from here. \(msg ?? "")"
                 .trimmingCharacters(in: .whitespaces)
         case .rateLimited:
-            return "Hit the OpenRouteService rate limit. Wait a minute, then try again."
+            return "Aimless has reached its routing limit for now. Wait a minute and try again."
         case .offline:
             return "No connection. Aimless needs data to build a loop — check your signal and try again."
         }
@@ -377,7 +380,15 @@ struct ORSHTTPError: LocalizedError {
     let status: Int
     let body: Data
 
-    var isRateLimit: Bool { status == 429 }
+    /// 403 counts as well as 429. A 403 reaching the client always came from
+    /// upstream — the Worker refuses its own callers with 401, 404, 405 or 413
+    /// — and upstream only forbids a well-formed request over credentials or
+    /// allowance. **Which code ORS uses for a spent daily quota has not been
+    /// observed**, so this covers both rather than betting on one. The cost of
+    /// being wrong is asymmetric: reading a quota refusal as one dead seed
+    /// tells the user "couldn't build any loops from here", which sends them to
+    /// a different town when the real answer is "come back later".
+    var isRateLimit: Bool { status == 429 || status == 403 }
 
     var errorDescription: String? {
         struct Envelope: Decodable {

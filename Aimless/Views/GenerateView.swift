@@ -1,3 +1,4 @@
+import CoreLocation
 import MapKit
 import SwiftUI
 import UIKit
@@ -6,20 +7,64 @@ struct GenerateView: View {
     @State private var location = LocationProvider()
     @State private var model = LoopViewModel()
     @State private var showResults = false
-    /// Set when Generate is tapped without a location fix behind it.
-    @State private var blocked = false
+
+    /// Why the last tap could not start a generate, or `nil` if nothing is
+    /// wrong. **Optional rather than `Bool`, and drawn inline rather than
+    /// presented.**
+    ///
+    /// Both of those are scar tissue. 1.0 (4) raised this as a SwiftUI
+    /// `.alert(isPresented:)` driven by a `Bool`, and App Review reported the
+    /// same "nothing happened when we tapped generate" it was written to fix.
+    /// Two things went wrong at once:
+    ///
+    /// 1. SwiftUI silently drops an alert presentation while something else is
+    ///    presenting — above all the system location permission prompt, which
+    ///    is on screen for exactly the first few seconds anyone uses the app.
+    /// 2. The flag stayed `true` afterwards, so every later tap re-assigned
+    ///    `true`, produced no state *change*, and therefore asked SwiftUI for
+    ///    nothing. The button went permanently silent.
+    ///
+    /// An optional cannot latch the same way — each tap writes a fresh value —
+    /// and inline content renders underneath a system alert instead of losing
+    /// to it. Both the failure and this fix were reproduced on an iPad Air
+    /// simulator before shipping.
+    @State private var note: BlockNote?
+
+    /// Bumped on every tap that does not start a generate immediately, purely
+    /// so haptic feedback re-fires when the note itself has not changed. Two
+    /// taps in the same state must still feel like two taps.
+    @State private var tapNonce = 0
+
+    /// A tap made before the location fix landed, remembered so it can run when
+    /// the fix arrives.
+    ///
+    /// This is the difference between "nothing happened" and "it worked, a
+    /// second later". A Wi-Fi-only iPad has no GPS and infers position from
+    /// nearby networks, so the gap between opening the app and having a usable
+    /// coordinate is routinely seconds — and it is precisely the window a
+    /// reviewer taps in.
+    @State private var pendingGenerate = false
+    @State private var pendingToken = 0
+
+    /// How long a queued tap waits for a fix before giving up and saying so.
+    /// Long enough for Wi-Fi positioning, short enough that the spinner is
+    /// never mistaken for a hang.
+    private static let fixWaitSeconds = 15
 
     @Environment(\.scenePhase) private var scenePhase
 
     #if DEBUG
     /// Screenshot automation. Launching with `-autoGenerate` taps Generate for
-    /// us as soon as a fix arrives.
+    /// us as soon as the app is up.
     ///
     /// This exists because there is no way to drive the simulator from a script
     /// otherwise: `simctl` has no tap command, and synthesising a click through
     /// System Events needs an accessibility grant a build machine won't have.
     /// DEBUG-only, so it cannot reach a release build.
-    @State private var didAutoGenerate = false
+    ///
+    /// It no longer waits for `isUsable` itself — `generate()` queues the tap,
+    /// which is the same path a real early tap takes, so the automation now
+    /// exercises the interesting code instead of tiptoeing around it.
     private var wantsAutoGenerate: Bool {
         ProcessInfo.processInfo.arguments.contains("-autoGenerate")
     }
@@ -75,26 +120,18 @@ struct GenerateView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
+                .animation(.snappy(duration: 0.2), value: note)
+                .animation(.snappy(duration: 0.2), value: pendingGenerate)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showResults) {
                 LoopResultsView(loops: model.loops, duration: model.duration)
             }
-            .alert("Can\u{2019}t generate yet", isPresented: $blocked) {
-                switch location.status {
-                case .denied, .reducedAccuracy:
-                    Button("Open Settings") { openSettings() }
-                    Button("Not Now", role: .cancel) {}
-                default:
-                    Button("OK", role: .cancel) {}
-                }
-            } message: {
-                Text(blockedReason)
-            }
             .onAppear {
                 location.start()
                 #if DEBUG
                 if let forced = forcedDuration { model.duration = forced }
+                if wantsAutoGenerate { generate() }
                 #endif
             }
             // The fix is taken once. Without this, opening the app in the
@@ -103,13 +140,23 @@ struct GenerateView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { location.start() }
             }
-            #if DEBUG
+            // The queued tap, redeemed. Anything waiting on a fix runs the
+            // moment one lands.
             .onChange(of: location.isUsable) { _, usable in
-                guard usable, wantsAutoGenerate, !didAutoGenerate else { return }
-                didAutoGenerate = true
-                generate()
+                guard usable else { return }
+                redeemPendingGenerate()
             }
-            #endif
+            // A queued tap that can never succeed should say so immediately
+            // rather than sitting out the full timeout.
+            .onChange(of: location.status) { _, status in
+                guard pendingGenerate else { return }
+                switch status {
+                case .denied:           resolvePending(with: .denied)
+                case .reducedAccuracy:  resolvePending(with: .reducedAccuracy)
+                case .failed:           resolvePending(with: .fixFailed)
+                case .locating, .ready: break
+                }
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -202,16 +249,30 @@ struct GenerateView: View {
 
     // MARK: - Status and action
 
+    /// One slot above the button, with a strict priority order so two things
+    /// never argue over it: a blocked tap, then a failed generate, then the
+    /// ambient location state.
+    ///
+    /// Everything here is ordinary inline content. Nothing in this app reports
+    /// a problem through a presentation any more — see `note`.
     @ViewBuilder private var status: some View {
-        if let message = statusMessage {
-            VStack(spacing: 8) {
-                Text(message)
-                    .font(Theme.display(14, .medium))
-                    .foregroundStyle(Theme.inkSoft)
-                    .multilineTextAlignment(.center)
-                recovery
-            }
-            .transition(.opacity)
+        if let note {
+            callout(symbol: note.symbol, message: note.message, action: note.action)
+        } else if let error = model.errorMessage {
+            // A failed generate used to be one grey line at the same weight as
+            // the picker's caption, which is easy to read as "nothing
+            // happened". A generate that cost the user a wait and produced no
+            // route deserves the same callout as anything else that went
+            // wrong.
+            callout(symbol: "exclamationmark.triangle.fill",
+                    message: error,
+                    action: .tryAgain)
+        } else if let ambient = ambientMessage {
+            Text(ambient)
+                .font(Theme.display(14, .medium))
+                .foregroundStyle(Theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .transition(.opacity)
         }
     }
 
@@ -220,6 +281,15 @@ struct GenerateView: View {
             Group {
                 if model.isGenerating {
                     ProgressView().tint(Theme.onEmber)
+                } else if pendingGenerate {
+                    // The tap is not lost, it is waiting. Saying so on the
+                    // control that was tapped is the most direct answer
+                    // available to "did that do anything?".
+                    HStack(spacing: 10) {
+                        ProgressView().tint(Theme.onEmber)
+                        Text("Finding you\u{2026}")
+                            .font(Theme.display(20, .bold))
+                    }
                 } else {
                     Text("Generate")
                         .font(Theme.display(20, .bold))
@@ -227,82 +297,192 @@ struct GenerateView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 62)
             .foregroundStyle(Theme.onEmber)
-            .background(location.isUsable ? Theme.ember : Theme.ember.opacity(0.35))
+            .background(Theme.ember)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        // Disabled only while a generate is already running. A button that is
-        // visible, looks like a button, and does literally nothing on tap is
-        // indistinguishable from a broken app — which is exactly how App Review
-        // described it. Without a fix the tap now explains itself.
+        // Disabled only while a generate is already running, and never dimmed
+        // otherwise. A tap is meaningful in every other state — it either
+        // generates, queues, or explains itself — so the button should never
+        // look unavailable.
         .disabled(model.isGenerating)
         .sensoryFeedback(.success, trigger: model.loops.count)
+        .sensoryFeedback(.impact, trigger: tapNonce)
     }
 
-    private var statusMessage: String? {
+    /// The quiet line, for states that are nobody's fault and not a response to
+    /// a tap.
+    private var ambientMessage: String? {
         switch location.status {
-        case .denied:
-            return "Aimless needs location access to start a loop where you are."
-        case .reducedAccuracy:
-            return "Precise Location is off, so we can't tell where the loop should start. Turn it on for Aimless."
-        case .failed:
-            return "Couldn't get a location fix. Somewhere with a clearer view of the sky usually does it."
-        case .locating:
-            return "Finding you\u{2026}"
-        case .ready:
-            return model.errorMessage
+        case .locating: return "Finding you\u{2026}"
+        case .denied, .reducedAccuracy, .failed, .ready: return nil
         }
     }
 
-    /// Why the tap could not do anything, in the same words the status line
-    /// uses, so the alert and the screen never contradict each other.
-    private var blockedReason: String {
-        switch location.status {
-        case .locating:
-            return "Aimless is still finding you. Give it a moment and tap Generate again."
-        case .ready:
-            return "Aimless doesn\u{2019}t have a location fix yet. Tap Generate again in a moment."
-        default:
-            return statusMessage ?? ""
-        }
-    }
+    private func callout(
+        symbol: String,
+        message: String,
+        action: BlockNote.Action?
+    ) -> some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: symbol)
+                    .font(Theme.display(15, .bold))
+                    .foregroundStyle(Theme.ember)
+                Text(message)
+                    .font(Theme.display(14, .medium))
+                    .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-    /// The way out of each stuck state. Without these the screen states a
-    /// problem and offers nothing to do about it.
-    @ViewBuilder private var recovery: some View {
-        switch location.status {
-        case .denied, .reducedAccuracy:
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                Link("Open Settings", destination: url)
+            if let action {
+                Button(action.title) { perform(action) }
                     .font(Theme.display(14, .bold))
                     .foregroundStyle(Theme.ember)
             }
-        case .failed:
-            Button("Try Again") { location.start() }
-                .font(Theme.display(14, .bold))
-                .foregroundStyle(Theme.ember)
-        case .locating, .ready:
-            EmptyView()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(Theme.ember.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Theme.ember.opacity(0.45), lineWidth: 1)
+        )
+        .transition(.opacity)
+    }
+
+    // MARK: - Actions
+
+    private func generate() {
+        guard !model.isGenerating else { return }
+
+        if location.isUsable, let origin = location.current {
+            note = nil
+            pendingGenerate = false
+            run(from: origin)
+            return
+        }
+
+        // No fix behind the tap. Every branch from here has to change something
+        // on screen; silence is the defect this whole file is organised around.
+        tapNonce += 1
+        model.errorMessage = nil
+
+        switch location.status {
+        case .denied:
+            pendingGenerate = false
+            note = .denied
+        case .reducedAccuracy:
+            pendingGenerate = false
+            note = .reducedAccuracy
+        case .locating, .failed, .ready:
+            // A fix is still reachable, so treat the tap as an instruction
+            // rather than a rejection: retry the request and run as soon as one
+            // lands. `.failed` is included deliberately — a stale failure is one
+            // request away from working.
+            note = nil
+            pendingGenerate = true
+            pendingToken += 1
+            location.start()
+            armPendingTimeout(pendingToken)
         }
     }
 
-    private func generate() {
-        guard location.isUsable, let origin = location.current else {
-            // Retry first: `.locating` and `.failed` both clear on their own
-            // once a fix lands, and a stale `.failed` is one request away from
-            // working. Then say something, because silence here is the defect.
-            location.start()
-            blocked = true
-            return
-        }
+    private func run(from origin: CLLocationCoordinate2D) {
         Task {
             await model.generate(from: origin)
             if model.hasResults { showResults = true }
         }
     }
 
+    private func redeemPendingGenerate() {
+        guard pendingGenerate, !model.isGenerating,
+              let origin = location.current else { return }
+        pendingGenerate = false
+        note = nil
+        run(from: origin)
+    }
+
+    /// Backstop for a queued tap when the fix never arrives and CoreLocation
+    /// never reports a failure either — which it does not always do. Without
+    /// this the button spins indefinitely, which is its own version of nothing
+    /// happening.
+    private func armPendingTimeout(_ token: Int) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.fixWaitSeconds))
+            guard pendingGenerate, pendingToken == token else { return }
+            resolvePending(with: .fixFailed)
+        }
+    }
+
+    private func resolvePending(with note: BlockNote) {
+        pendingGenerate = false
+        self.note = note
+    }
+
+    private func perform(_ action: BlockNote.Action) {
+        switch action {
+        case .openSettings:
+            openSettings()
+        case .tryAgain:
+            note = nil
+            model.errorMessage = nil
+            generate()
+        }
+    }
+
     private func openSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+}
+
+// MARK: - Block notes
+
+/// The reasons a tap on Generate can fail to start one, and what to offer the
+/// user about each. A type rather than loose strings, so adding a state without
+/// deciding what it says on screen is a compile error.
+private enum BlockNote: Equatable {
+    case denied
+    case reducedAccuracy
+    case fixFailed
+
+    enum Action: Equatable {
+        case openSettings
+        case tryAgain
+
+        var title: String {
+            switch self {
+            case .openSettings: return "Open Settings"
+            case .tryAgain: return "Try Again"
+            }
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .denied, .reducedAccuracy: return "location.slash.fill"
+        case .fixFailed: return "location.magnifyingglass"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .denied:
+            return "Aimless needs location access to start a loop where you are. Turn it on in Settings, then tap Generate again."
+        case .reducedAccuracy:
+            return "Precise Location is off, so we can\u{2019}t tell where the loop should start. Turn it on for Aimless in Settings."
+        case .fixFailed:
+            return "Couldn\u{2019}t get a location fix. Somewhere with a clearer view of the sky usually does it."
+        }
+    }
+
+    var action: Action? {
+        switch self {
+        case .denied, .reducedAccuracy: return .openSettings
+        case .fixFailed: return .tryAgain
+        }
     }
 }
 
