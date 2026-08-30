@@ -16,7 +16,7 @@ compatibility_date = "2026-08-08"
 # the box have to change together and only one of them is a deploy: the extract
 # is built first, this is widened second. See REGIONS in src/index.js.
 [vars]
-SELF_HOSTED_REGIONS = "nj"
+SELF_HOSTED_REGIONS = "nj,ca"
 
 # Workers Logs. Off until 2026-08-27, which is why the fourth App Review
 # rejection could not be checked against anything — there was no record of
