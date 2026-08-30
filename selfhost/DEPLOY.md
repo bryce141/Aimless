@@ -407,3 +407,130 @@ JVM started.
 
 `fetch-extract.sh` keeps both `nj-region.osm.pbf` and `california.osm.pbf`
 rather than deleting them after the merge, so none of this needs a download.
+
+## Closing tcp/22 — SSH over the tunnel instead
+
+Not done yet. Written 2026-08-30 while the port was still open.
+
+**Why bother.** `129.213.20.151` is published in this repo, which is public, and
+`iptables` accepts tcp/22 from `0.0.0.0/0`. SSH is already key-only
+(`passwordauthentication no`, verified with `sshd -T`), so this is scan noise
+rather than an open door — but the box's own `cloudflared` config states the
+intent plainly: *"Nothing inbound is opened on the host; cloudflared dials out
+to Cloudflare."* Port 22 is the standing exception to that.
+
+**Why not just pin 22 to a home IP.** Because it is residential and will change,
+and it will change on a day when the box needs attention. The tunnel does not
+care what the client's address is.
+
+**The order below never leaves the box unreachable.** SSH keeps working on
+tcp/22 the entire time; the port is closed only in step 7, after the replacement
+path has been used successfully.
+
+### 1. Route a hostname to the tunnel (from the Mac)
+
+The Mac holds the origin cert at `~/.cloudflared/cert.pem`; the box does not, so
+this cannot be run there.
+
+```
+cloudflared tunnel route dns d47a138a-3c81-42a1-a6b9-44034c3ee007 ssh.workdocks.com
+```
+
+### 2. Add the ingress (on the box)
+
+`cloudflared` matches ingress rules in order and the last must be the catch-all,
+so the SSH rule goes *before* `http_status:404` and after the ORS rule.
+
+```
+sudo cp /etc/cloudflared/config.yml /etc/cloudflared/config.yml.bak
+sudo nano /etc/cloudflared/config.yml
+```
+
+Add, between the `ors.workdocks.com` block and the final `- service:` line:
+
+```
+  - hostname: ssh.workdocks.com
+    service: ssh://localhost:22
+```
+
+Then validate before restarting — a malformed file takes ORS down with it:
+
+```
+sudo cloudflared --config /etc/cloudflared/config.yml ingress validate
+sudo systemctl restart cloudflared
+curl -s -m 15 https://ors.workdocks.com/ors/v2/health
+```
+
+That last line is the check that matters. **If ORS stops answering, restore the
+backup and restart** — the routing the app depends on shares this tunnel.
+
+### 3. Teach the Mac to dial it
+
+Append to `~/.ssh/config`:
+
+```
+Host aimless-box
+  HostName ssh.workdocks.com
+  User ubuntu
+  IdentityFile ~/.ssh/aimless_oracle
+  ProxyCommand /opt/homebrew/bin/cloudflared access ssh --hostname %h
+```
+
+### 4. Prove the new path works — while 22 is still open
+
+```
+ssh aimless-box 'uptime'
+```
+
+**Do not proceed until this succeeds.** This is the whole safety margin.
+
+### 5. Put Cloudflare Access in front of it
+
+Without this, anyone who guesses the hostname can reach the SSH port — still
+key-gated, but reachable. Access rejects unauthenticated callers at Cloudflare's
+edge instead of at our origin, which is the point.
+
+In the dashboard: **Zero Trust → Access → Applications → Add an application →
+Self-hosted**, hostname `ssh.workdocks.com`, one policy — action Allow, rule
+*Emails* = the developer address. Save.
+
+### 6. Re-test through Access
+
+```
+ssh aimless-box 'uptime'
+```
+
+A browser window opens for the one-time PIN on first use, then the session is
+cached. If this fails, the Access policy is wrong — fix it before step 7, not
+after.
+
+### 7. Close the port
+
+Host firewall first. Rule 4 is the `dpt:22` ACCEPT; confirm the number rather
+than trusting it, because deleting the wrong rule can cut the session:
+
+```
+sudo iptables -L INPUT -n --line-numbers
+sudo iptables -D INPUT 4
+sudo netfilter-persistent save
+```
+
+Then the same at the VCN level, which is the layer that actually keeps packets
+off the host: **OCI console → Networking → Virtual Cloud Networks → the VCN →
+Security Lists → the default list → remove the ingress rule for 22/tcp from
+`0.0.0.0/0`.**
+
+### 8. Verify it is actually shut
+
+```
+nc -z -G 5 129.213.20.151 22 && echo STILL OPEN || echo closed
+ssh aimless-box 'uptime'
+```
+
+Wanted: `closed`, and the tunnel session still working.
+
+### If you lock yourself out anyway
+
+OCI console → the instance → **Console connection**, which is a serial console
+independent of the network stack. From there, re-add the iptables rule. This is
+the reason step 7 is last and step 4 is mandatory.
