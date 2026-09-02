@@ -1,22 +1,27 @@
-# Handoff — v1 with App Review, runs on a phone, still never driven
+# Handoff — v1 approved by App Review, runs on a phone, still never driven
 
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-08-30.
+Last updated 2026-09-02.
 
 ## Where this stands
 
-**Rejected four times. Build 1.0 (5) is uploaded and the reply to the fourth
-rejection was sent on 2026-08-30.**
+**Approved. Build 1.0 (5) cleared App Review on the fifth pass, 2026-09-02,
+after four rejections.**
 
-**Waiting on App Review, fifth pass.**
+The fifth submission is the one that carried both the silent-button fix and
+California on our own routing box. See "Rejected a fourth time" below for what
+is in the build and "Widening coverage" in `selfhost/DEPLOY.md` for how the
+graph was built.
 
-Everything that was owed before 1.0 (5) could go is done. California is served
-from our own box, the Worker routes it there, the build is up, and the reply —
-which claims exactly that — went out afterwards, in that order. See "Rejected a
-fourth time" below for what is in the build and "Widening coverage" in
-`selfhost/DEPLOY.md` for how the graph was built.
+**What approval changed, and it is not the review history.** Every limit in
+this file was theoretical while the only user was Bryce and the only traffic
+was App Review. It is now live. Read "The two ceilings" below before anything
+else: outside New Jersey and California the app supports **single-digit
+generates per day across every install on earth**, and the listing makes no
+geographic claim. That is now the top open problem in this project, ahead of
+the drive.
 
 Four rejections. The first two were not code defects; the third and fourth
 were:
@@ -285,17 +290,21 @@ are typing:
 
 Write to fit rather than trimming under time pressure. `wc -m` before pasting.
 
-## What happens when Apple replies
+## Shipping after approval
 
-1. **Approved** — next build is 1.0.1 with a fresh build number.
-2. **Rejected again** — fix what they cite; the next binary is 1.0 build 5.
+Resolved: the outcome was **approved**, so **the next binary is 1.0.1 with a
+fresh build number**. Apple requires the build's version string to match the App
+Store Connect record, which is why this could not be decided in advance.
 
-Version numbers cannot be chosen in advance: Apple requires the build's version
-string to match the App Store Connect record, so the outcome decides it.
-
-Pushing a new build later is safe. A live app stays live while a new version is
-in review; users keep downloading the current one, and the new version only
+Pushing a new build is safe. A live app stays live while a new version is in
+review; users keep downloading the current one, and the new version only
 replaces it on approval. There is no window where the app disappears.
+
+**Nothing on the ceiling problem needs a new binary.** Coverage is
+`SELF_HOSTED_REGIONS` in the Worker and the graph on the Oracle box — both
+server-side, both deployable without Apple. Save 1.0.1 for something that
+genuinely lives in the app, and the first candidate is whatever the drive turns
+up.
 
 ## Who this is for
 
@@ -334,6 +343,13 @@ all three conversions come from.
 limit of either kind. Origins anywhere else still spend HeiGIT's allowance, and
 that allowance is small: it read 2000/day on 2026-08-23 and 200/day on
 2026-08-27, cut by HeiGIT rather than by us.
+
+**Re-measured 2026-09-02, on approval day, against the live Worker.** Still
+`x-ratelimit-limit: 200`. Marlboro NJ and Cupertino CA both came back
+`x-aimless-served-by: self`; Chicago came back `heigit`. The box was up 14 days
+with load 0.06 and 29 GB free on a 48 GB volume, so it is idle rather than
+strained — see "Watch for" on Oracle reclaiming idle always-free compute, which
+is a live risk again precisely because there are no users yet.
 
 So the honest statement of the ceiling is now geographic rather than numeric.
 Inside the two served states the app is effectively unlimited. Outside them it
