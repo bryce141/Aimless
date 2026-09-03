@@ -131,6 +131,38 @@ rather than measured.** `selfhost/README.md` records that six times the map cost
 across much smaller files. The graph currently serving is preserved before the
 rebuild starts, so a failure costs hours and not coverage.
 
+### Extract fetched and verified 2026-09-03 15:35Z
+
+`us-latest.osm.pbf`, **12,116,008,404 bytes**, Geofabrik replication timestamp
+2026-08-31T20:21:20Z. `osmium check-refs -r` reports complete ways, so the file
+is sound in the one way that killed two builds on 2026-08-30.
+
+`data/coverage.osm.pbf` is a **hard link** to `data/us.osm.pbf` — same inode
+`524394`, link count 2 — rather than a copy, which is what keeps a second 11 GB
+off the disk. That inode equality is also the check worth repeating before any
+build: `fetch-extract.sh` runs under `set -e`, so a failed verification leaves
+the *old* 2.3 GB two-state file sitting at that path, and building from it would
+silently produce the graph you already have after hours of work.
+
+**The header carries no bounding box**, so whether Alaska and Hawaii are in the
+file is still unconfirmed — `osmium fileinfo -e` would answer it but reads all
+12 GB. The better test is to ask the finished graph directly, and that is in
+"Still to do" below.
+
+### Build started 2026-09-03 15:41Z
+
+Box taken out of service at 15:41:04Z; NJ and CA fall back to HeiGIT until it
+returns, so they are slower and spending quota rather than broken. The serving
+graph was preserved as `graphs.nj-ca` (2.4 GB) first. Disk at start: 116 GB free
+of 145 GB. `REBUILD_GRAPHS` armed to `"True"`, container up 15:41:35Z, and the
+log confirms `Elevation deactivated`.
+
+`sample-build-mem.sh` is running against this build, so the peak-heap figure
+that the whole estimate rests on will be measured rather than extrapolated when
+it lands. **Put `REBUILD_GRAPHS` back to `"False"` when it finishes** — left
+armed, every future restart rebuilds from scratch, which is exactly what the
+overnight session left behind.
+
 Disk is no longer a constraint and the figure under Environment is stale: the
 volume is **145 GB with 121 GB free**, not the 48 GB it records.
 
