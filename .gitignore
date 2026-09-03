@@ -19,3 +19,17 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+
+# Stray root wrangler config. wrangler creates one here if `deploy` is run from
+# the repo root instead of worker/, and then deploys the wrong thing — it did on
+# 2026-09-03, publishing docs/ as a Worker named "imless". worker/wrangler.toml
+# is the only config this project has.
+wrangler.jsonc
+wrangler.jsonc.stray-*

@@ -123,13 +123,115 @@ const SELF_HOSTED_TIMEOUT_MS = 1000;
  */
 const CACHE_TTL_SECONDS = 86400;
 
+/**
+ * Where the uptime monitor points. GET, unauthenticated, no coordinates
+ * involved, so it is safe to hand to a third-party checker.
+ */
+const HEALTH_PATH = "/health/selfhosted";
+
+/**
+ * Longer than `SELF_HOSTED_TIMEOUT_MS`, and on purpose.
+ *
+ * The routing timeout is 1000 ms because a user is waiting and HeiGIT is a
+ * perfectly good answer. A monitor is not waiting, and a page-out at 3am
+ * because the box took 1.2 s once is worse than useless — it teaches you to
+ * ignore the alert. This wants to fire when the box is *gone*, not when it is
+ * briefly busy. Note the first request after a restart is slower: MMAP serves
+ * the graph from disk and the page cache starts cold.
+ */
+const HEALTH_TIMEOUT_MS = 8000;
+
+/**
+ * Ask our own instance whether it is serving, and say so in a shape an uptime
+ * monitor understands: **HTTP 200 means healthy, anything else means alert.**
+ *
+ * The three states worth telling apart, because they need different responses:
+ *
+ * - `unconfigured` — `SELF_HOSTED_ORIGIN` is unset, so the Worker is sending
+ *   everything to HeiGIT by design. This is the documented rollback position,
+ *   not a fault, so it answers 200. If it answered 503 the monitor would scream
+ *   through a deliberate rollback.
+ * - `ok` — the box answered and reported ready.
+ * - `down` — no answer, a timeout, or a body that does not say ready. A graph
+ *   rebuild also lands here, because ORS reports "not ready" while building,
+ *   which is correct: during a rebuild the country really is on HeiGIT's 200/day.
+ */
+async function selfHostedHealth(env) {
+  const started = Date.now();
+
+  if (!env.SELF_HOSTED_ORIGIN) {
+    return healthJson(200, {
+      ok: true,
+      state: "unconfigured",
+      note: "SELF_HOSTED_ORIGIN unset; all traffic goes to HeiGIT by design",
+    });
+  }
+
+  try {
+    const headers = {};
+    if (env.SELF_HOSTED_TOKEN) headers["X-Aimless-Origin"] = env.SELF_HOSTED_TOKEN;
+
+    const res = await fetch(`${env.SELF_HOSTED_ORIGIN}/v2/health`, {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    });
+    const latencyMs = Date.now() - started;
+    const text = (await res.text()).slice(0, 200);
+
+    // ORS answers {"status":"ready"} when serving and {"status":"not ready"}
+    // while a graph builds. Substring-matching "ready" would match both, which
+    // is a mistake already made once against this exact endpoint.
+    const ready = res.ok && text.includes('"status":"ready"');
+
+    return healthJson(ready ? 200 : 503, {
+      ok: ready,
+      state: ready ? "ok" : "down",
+      upstreamStatus: res.status,
+      upstreamBody: text,
+      latencyMs,
+    });
+  } catch (err) {
+    return healthJson(503, {
+      ok: false,
+      state: "down",
+      error: String(err?.name ?? err),
+      latencyMs: Date.now() - started,
+    });
+  }
+}
+
+function healthJson(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      // Never cache a health result. A cached 200 outliving the box being up
+      // is the one way this check can lie.
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // Public health probe for an external uptime monitor. Deliberately GET,
+    // deliberately unauthenticated, and deliberately *not* on the routing path.
+    //
+    // **It has to be answered here rather than on the box.** A check that runs
+    // on the instance cannot report that the instance is gone. The Worker runs
+    // on Cloudflare's edge and is up when the box is not, which is the only
+    // arrangement that can distinguish the two.
+    if (url.pathname === HEALTH_PATH) {
+      return selfHostedHealth(env);
+    }
+
     if (request.method !== "POST") {
       return json(405, "Method not allowed");
     }
 
-    const url = new URL(request.url);
     if (url.pathname !== ALLOWED_PATH) {
       return json(404, "Not found");
     }
@@ -195,6 +297,27 @@ export default {
     }
 
     return passThrough(upstream, "heigit", store);
+  },
+
+  /**
+   * Cron trigger. Runs the same probe on a schedule and writes the result to
+   * Workers Logs.
+   *
+   * **This is a record, not an alarm** — nothing here can wake anyone up, and
+   * pretending otherwise would be worse than having no check. Its job is that
+   * when someone eventually asks "how long has it been down", the answer exists
+   * rather than having to be guessed. The alerting is an external monitor
+   * pointed at HEALTH_PATH, which is the piece that can actually reach a person.
+   */
+  async scheduled(event, env, ctx) {
+    const res = await selfHostedHealth(env);
+    const body = await res.clone().json().catch(() => ({}));
+    logOutcome({
+      probe: "selfhosted-health",
+      status: res.status,
+      state: body.state,
+      latencyMs: body.latencyMs,
+    });
   },
 };
 

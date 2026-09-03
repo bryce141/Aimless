@@ -28,3 +28,11 @@ SELF_HOSTED_REGIONS = "nj,ca,us_north,us_southeast,us_texas,us_southwest"
 [observability]
 enabled = true
 head_sampling_rate = 1
+
+# Probes the self-hosted box every five minutes and writes the result to
+# Workers Logs. This is a record, not an alarm — it cannot wake anyone up. The
+# alerting is an external uptime monitor pointed at /health/selfhosted, and the
+# reason that check lives out here rather than on the instance is that a check
+# running on the box cannot report that the box is gone.
+[triggers]
+crons = ["*/5 * * * *"]
