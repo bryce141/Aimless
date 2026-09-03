@@ -3,7 +3,7 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-09-02.
+Last updated 2026-09-03.
 
 ## Where this stands
 
@@ -15,13 +15,18 @@ California on our own routing box. See "Rejected a fourth time" below for what
 is in the build and "Widening coverage" in `selfhost/DEPLOY.md` for how the
 graph was built.
 
-**What approval changed, and it is not the review history.** Every limit in
-this file was theoretical while the only user was Bryce and the only traffic
-was App Review. It is now live. Read "The two ceilings" below before anything
-else: outside New Jersey and California the app supports **single-digit
-generates per day across every install on earth**, and the listing makes no
-geographic claim. That is now the top open problem in this project, ahead of
-the drive.
+**The coverage problem is solved as of 2026-09-03.** It was the top open item in
+this file for a day: outside New Jersey and California the app supported
+single-digit generates per day across every install on earth. The whole United
+States now runs on our own box, and the app supports **roughly 2,750 users a
+day** against roughly 5 before. See "Widening to the whole country" below for
+what it cost and where it is still weak, and "The ceilings" for the arithmetic.
+
+**What is now the top operational risk is that nothing watches the box.** The
+entire product depends on it, where a day ago two states did. If it dies, every
+request in the country silently falls back to HeiGIT's 200/day and **nothing
+tells anyone** — the failure mode is "slower, then rationed", which looks like
+the app being bad rather than the box being down.
 
 Four rejections. The first two were not code defects; the third and fourth
 were:
