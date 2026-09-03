@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
-# Builds the merged extract the routing graph is built from.
+# Builds the extract the routing graph is built from.
+#
+# TWO MODES, set with COVERAGE. The default is the whole country.
+#
+#   COVERAGE=us      one Geofabrik file, us-latest.osm.pbf, ~11.3 GB   (default)
+#   COVERAGE=nj-ca   New Jersey + neighbours, merged with California   (rollback)
+#
+# `us` is the simpler of the two and not just the bigger one. Both failure modes
+# that cost the 2026-08-30 session — the merge and the duplicate relations — only
+# exist because that mode stitches two files together. One input has neither.
+# The complete-ways check below still runs, because that one is about whether the
+# file itself is sound rather than about how it was assembled.
 #
 # TWO SEPARATE IDEAS ARE IN HERE, and mixing them up produces wrong routes.
 #
-# 1. Regions we *serve*: New Jersey and California. Those are the boxes in
-#    REGIONS in worker/src/index.js, and they are where the Worker sends traffic
-#    to us instead of to HeiGIT.
+# 1. Regions we *serve*: the boxes in REGIONS in worker/src/index.js, which are
+#    where the Worker sends traffic to us instead of to HeiGIT.
 #
-# 2. Regions we *build*: the served ones plus their neighbours. A graph ends at
-#    the edge of its extract, and a route generated near that edge is clipped
-#    against roads that simply stop existing — it comes back plausible-looking
-#    and too short, with no error at all. Montague NJ returned a loop 19% short
-#    against a NJ-only graph.
+# 2. Regions we *build*: the served ones plus a margin. A graph ends at the edge
+#    of its extract, and a route generated near that edge is clipped against
+#    roads that simply stop existing — it comes back plausible-looking and too
+#    short, with no error at all. Montague NJ returned a loop 19% short against
+#    a NJ-only graph.
 #
-#    So New Jersey is built with PA, NY and DE around it. California is built
-#    alone, and the served box is inset from its land borders instead — the
-#    state is 1,200 km tall and adding Nevada, Oregon and Arizona to cover its
-#    edges would roughly double an extract that already dominates the build.
+#    Under `us` the only real edges left are the Canadian and Mexican land
+#    borders. Coastlines are not edges in this sense: the road network genuinely
+#    stops at the water, so a clipped route there is a correct route. The served
+#    boxes are inset from those two borders and from nothing else.
 #
-# California is here because App Review is: four reviews, four iPads, all of
-# them somewhere around Cupertino, every one of them routed to HeiGIT and its
-# shared daily quota. See DEPLOY.md, "Widening coverage".
+#    Under `nj-ca` the margin is explicit instead: New Jersey is built with PA,
+#    NY and DE around it, and California is built alone with its served box
+#    inset from the land borders it shares with Oregon, Nevada and Arizona.
 #
 # EVERYTHING COMES FROM GEOFABRIK, and the reason is not brand loyalty.
 #
@@ -48,7 +58,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p data
 
+coverage=${COVERAGE:-us}
+
 geofabrik=https://download.geofabrik.de/north-america/us
+# us-latest.osm.pbf sits in the *parent* directory, next to the us/ folder the
+# per-state files are in. Not a typo.
+geofabrik_us=https://download.geofabrik.de/north-america/us-latest.osm.pbf
 
 # Fails the build early on an extract that would fail it late. `check-refs`
 # reads the whole file, which is minutes; the build it saves is over an hour.
@@ -77,6 +92,52 @@ require_complete_ways() {
   fi
   echo "verified: $f has complete ways"
 }
+
+# ---------------------------------------------------------------------------
+# COVERAGE=us — the whole country, one file, no merge.
+# ---------------------------------------------------------------------------
+#
+# Nothing below this block runs in this mode, and that is the point: with a
+# single input there is nothing to merge and therefore nothing that can carry
+# the same object at two versions. The dedupe pass further down exists purely to
+# survive stitching two files together.
+#
+# The download is ~11.3 GB and resumable. `curl -C -` picks up where a dropped
+# connection left off rather than starting over, which matters at this size —
+# an hour of transfer is not something to repeat because a laptop slept.
+#
+# Delete data/us.osm.pbf to force a fresh copy. Otherwise an existing one is
+# reused, exactly like the two files in the nj-ca path.
+if [[ $coverage == us ]]; then
+  if [[ -f data/us.osm.pbf ]]; then
+    echo "reusing data/us.osm.pbf ($(du -h data/us.osm.pbf | cut -f1))"
+  else
+    echo "fetching us-latest.osm.pbf (~11.3 GB) from Geofabrik..."
+    # --no-progress-meter because this runs under nohup: curl's progress bar
+    # writes a line per second to a file nobody is watching, which buried the
+    # actual output of the first run under 130 lines of percentages. The size is
+    # reported by the ls at the end, which is the number that matters.
+    curl -L --fail -C - --no-progress-meter -o data/us.osm.pbf "$geofabrik_us"
+  fi
+
+  # Same gate as always, and it costs more here — check-refs reads the whole
+  # file, so budget 15-25 minutes against the minutes it takes on 2.3 GB. It is
+  # still the cheap end of the trade: the build it protects is hours.
+  require_complete_ways data/us.osm.pbf
+
+  # A hard link rather than a copy. Same filesystem, so it costs no disk and no
+  # time, and the container sees an ordinary file — a symlink would point at a
+  # path that does not exist inside the container's own filesystem. Deleting
+  # either name leaves the other intact, so this is not a trap for a later
+  # cleanup: the data survives until both are gone.
+  ln -f data/us.osm.pbf data/coverage.osm.pbf
+  ls -lh data/coverage.osm.pbf
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# COVERAGE=nj-ca — the previous behaviour, kept as the rollback path.
+# ---------------------------------------------------------------------------
 
 # The northeast bundle, pre-merged. Delete data/nj-region.osm.pbf to re-fetch;
 # otherwise an existing one is reused, which is what makes adding a region cheap

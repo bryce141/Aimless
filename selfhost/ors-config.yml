@@ -21,10 +21,20 @@ ors:
 
     profile_default:
       build:
-        # NJ + PA + NY + DE + CA, merged with osmium. New Jersey needs its
-        # neighbours in the graph or routes near the state line get clipped
-        # against roads that simply stop existing; California is served inset
-        # from its own borders instead. See fetch-extract.sh.
+        # Off since 2026-09-03, and this is what makes a country-sized extract
+        # affordable. Measured on the NJ+CA graph: build peaked at 4,354 MiB of
+        # heap against the 8 GB ceiling with elevation off, and the build ran 40
+        # minutes against 48. Elevation also drags an SRTM tile download into
+        # the build — the cache is already 6.2 GB for two states, and US-wide it
+        # would add hours of fetching from S3 mid-build.
+        #
+        # Nothing in the app reads it. Loops are ranked on duration and highway
+        # share; grade is not an input to either. Turn it back on only if
+        # something starts needing gradient, and expect the build cost back.
+        elevation: false
+        # The whole United States, one Geofabrik file. Was NJ + PA + NY + DE + CA
+        # merged with osmium until 2026-09-03; that mode still exists as
+        # COVERAGE=nj-ca. See fetch-extract.sh.
         source_file: /home/ors/files/coverage.osm.pbf
 
     profiles:

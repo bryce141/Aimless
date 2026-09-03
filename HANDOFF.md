@@ -53,6 +53,102 @@ highway ranking, the direction-bias question and handoff fidelity all stand on
 ORS's own numbers and stay that way. Stop filing it as an open item and stop
 proposing it — it has been raised and answered.
 
+## Widening to the whole country — in flight 2026-09-03
+
+**Started, not finished.** Written down before the long step rather than after,
+because the session that did the prep work died mid-run and everything it had
+learned went with it.
+
+### What the overnight session of 2026-09-03 actually did
+
+At 01:04 elevation was turned off, `REBUILD_GRAPHS` was flipped to `"True"`, a
+memory sampler was started, and the graph rebuilt 01:11 → 01:51. **Coverage did
+not change.** `fetch.log` reads "reusing" for both inputs, so it rebuilt the
+same NJ+CA `coverage.osm.pbf` from 2026-08-30.
+
+It was a measurement, and a useful one:
+
+| | Peak heap | Peak container | Build time |
+|---|---|---|---|
+| Elevation on (2026-08-30) | — | — | 48m14s |
+| Elevation off (2026-09-03) | **4,354 MiB** | 5,605 MiB | ~40 min |
+
+Against `XMX: 8g` and 11 GB of RAM. That headroom is what makes a country-sized
+extract affordable, which is what the prep was for.
+
+**A whole-US graph was believed to exist after that session and did not.** The
+misread is worth recording because it is an easy one to repeat. The build log's
+flush line reads:
+
+```
+bounds: -124.4005403, -71.8582973, 32.4951871, 45.0621982
+```
+
+Pacific coast to eastern Long Island — which reads as coast-to-coast, and is
+not. It is the bounding box of **two disjoint extracts**, California and the
+northeast bundle. The box of a union is not the union; everything between
+Nevada and Pennsylvania was empty. Node and edge counts are the honest check:
+9,097,006 and 11,487,713, which is a two-state graph.
+
+### Two things that session left behind
+
+- **`REBUILD_GRAPHS` was left `"True"`.** Any container restart would have
+  triggered a full rebuild with the box out of service. Set back to `"False"`
+  on 2026-09-03. DEPLOY.md already says to do this; it just did not happen.
+- **`elevation: false` existed only on the box.** DEPLOY.md's widening
+  procedure *starts* with an `rsync` of `selfhost/`, which would have pushed the
+  repo's config back over it and silently re-enabled elevation on the next
+  build. Now committed to `selfhost/ors-config.yml`, so the two agree.
+
+### Elevation stays off
+
+Decided 2026-09-03. Nothing in the app reads it — loops are ranked on duration
+and highway share, and grade is not an input to either. It costs 8 minutes of
+build time on two states, and it drags an SRTM tile download into the build:
+the cache is already **6.2 GB for NJ+CA**, and US-wide that is hours of fetching
+from S3 in the middle of an already long build. Turn it back on only if
+something starts needing gradient.
+
+### The build
+
+`fetch-extract.sh` now takes a `COVERAGE` mode. `us` is the default and is
+**simpler than the two-state path, not just bigger** — one Geofabrik file means
+no `osmium merge` and no duplicate-relation dedupe, which is both of the failure
+modes that cost the 2026-08-30 session. The complete-ways check still runs,
+because that one is about whether the file itself is sound. `COVERAGE=nj-ca`
+keeps the old behaviour as a rollback.
+
+| | Now | Whole US |
+|---|---|---|
+| Extract | 2.3 GB | **11.28 GB** |
+| Graph | 2.4 GB | ~12 GB estimated |
+| Build | ~40 min | **3.5-6 hours estimated** |
+| Peak heap | 4,354 MiB | 5.0-5.7 GB estimated, against 8 GB |
+
+**Heap is the number that can kill it, and it is the one that is extrapolated
+rather than measured.** `selfhost/README.md` records that six times the map cost
+15% more heap, which is where the estimate comes from, but that was measured
+across much smaller files. The graph currently serving is preserved before the
+rebuild starts, so a failure costs hours and not coverage.
+
+Disk is no longer a constraint and the figure under Environment is stale: the
+volume is **145 GB with 121 GB free**, not the 48 GB it records.
+
+### Still to do after the build
+
+**Widening the Worker is a separate deploy, and the order is load-bearing** —
+graph first, `SELF_HOSTED_REGIONS` second. See DEPLOY.md.
+
+`REGIONS` in `worker/src/index.js` needs new boxes, and **a single bounding box
+cannot express the country**. The inset exists so a loop cannot reach the edge
+of the graph, and with `us-latest` the only edges left are the Canadian and
+Mexican land borders — coastlines are not edges in this sense, because the road
+network genuinely stops at the water. Insetting 65 km from the Canadian border
+costs a thin northern strip. Insetting the same amount from the Mexican border
+would cut Miami, because one `minLat` cannot be inset in Texas and not in
+Florida. So it needs more than one box, which `SELF_HOSTED_REGIONS` already
+supports as a list.
+
 ## Rejected again 2026-08-19, and what fixed it
 
 Second rejection of 1.0 (3), on two counts. Reviewed on an **iPad Air 11-inch
