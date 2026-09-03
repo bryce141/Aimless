@@ -47,8 +47,11 @@ filmed. It shows indirectly — the app sits on "Finding you..." while the alert
 is up, and the status-bar arrow appears the moment access is granted. Two
 recordings were thrown away before working that out.
 
-**Still never driven.** Everything past the simulator and the API is guesswork
-without it.
+**Still never driven, and that is now a decision rather than a gap.** Asked
+directly on 2026-09-02, Bryce declined: not needed. So the duration table, the
+highway ranking, the direction-bias question and handoff fidelity all stand on
+ORS's own numbers and stay that way. Stop filing it as an open item and stop
+proposing it — it has been raised and answered.
 
 ## Rejected again 2026-08-19, and what fixed it
 
@@ -675,7 +678,8 @@ only one of them is fixed by waiting, which the old `isDenied` bool couldn't say
   share-alike clause would matter if loops were ever exported or shared as
   data, so check before building any share feature.
 
-- **Never been driven.** Everything past this point is guesswork without it.
+- **Never been driven, by decision** (2026-09-02). Not an open item. See "Where
+  this stands".
 - **Request timeout is 30s, unmeasured.** Generous against measured 0.5-1.0s
   responses, so on flaky cell it means a 30-second spinner with no cancel. Left
   alone deliberately — lowering it without measuring risks failing slow-but-fine
