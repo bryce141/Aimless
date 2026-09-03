@@ -568,7 +568,7 @@ Three rules that came out of it:
 - **Keep the units straight.** A per-minute limit and a per-day limit in the same
   table, without labels, is unreadable. That one confused an entire exchange.
 
-## The two ceilings, in plain terms
+## The ceilings, in plain terms
 
 Worth keeping because it gets re-derived every time. **There are two separate
 limits, in different units, and they have nothing to do with each other.**
@@ -582,43 +582,55 @@ limits, in different units, and they have nothing to do with each other.**
 One generate costs ~18 requests, or up to 36 with a retry round, which is where
 all three conversions come from.
 
-**Both HeiGIT rows only apply outside New Jersey and California now.** Since
-2026-08-30 those two states are served by our own box, which has no request
-limit of either kind. Origins anywhere else still spend HeiGIT's allowance, and
-that allowance is small: it read 2000/day on 2026-08-23 and 200/day on
-2026-08-27, cut by HeiGIT rather than by us.
+### Updated 2026-09-03, when the whole US moved to our own box
 
-**Re-measured 2026-09-02, on approval day, against the live Worker.** Still
-`x-ratelimit-limit: 200`. Marlboro NJ and Cupertino CA both came back
-`x-aimless-served-by: self`; Chicago came back `heigit`. The box was up 14 days
-with load 0.06 and 29 GB free on a 48 GB volume, so it is idle rather than
-strained — see "Watch for" on Oracle reclaiming idle always-free compute, which
-is a live risk again precisely because there are no users yet.
+**The binding limit changed, and so did the advice about paying for it.**
 
-So the honest statement of the ceiling is now geographic rather than numeric.
-Inside the two served states the app is effectively unlimited. Outside them it
-supports single-digit generates per day across every install on earth — less
-than one App Review pass consumes. **That is the number to widen coverage
-against**, and the reason to add a region is that people are in it, not that the
-graph would be interesting.
+**The Oracle row is no longer the constraint, and it is now measured** — the
+number this file used to flag as the only guess. On the 15 GB US graph: twelve
+concurrent round trips in **0.47-0.52 s**, single request **49-64 ms**. That is
+~24 requests/second, or **roughly 80 generates per minute**. Note it got *faster*
+than the two-state graph (0.73 s, 55-140 ms) despite being six times the map,
+because MMAP keeps the graph off-heap and the page cache does the work.
 
-Whichever number is tighter is the one that actually stops you. Outside the
-served states that is HeiGIT's 200/day. Inside them the binding limit is the
-Worker's 5,500 generates/day, which is a $5/month problem rather than an
-engineering one.
+**So the Cloudflare Worker is now what stops you**, at 100k requests/day:
 
-In users: **roughly 100 today, roughly 2,500 with Oracle.** A hundred people
-generating twice on a Saturday morning is 3.3/minute against a ceiling of 2 —
-errors during the exact hour the app exists for. 2,500 people generating twice
-is 5,000/day, just under the Worker cap.
+> **100,000 ÷ 18 ≈ 5,500 generates/day ÷ 2 per user ≈ 2,750 users**
 
-**Paying Cloudflare $5 without the Oracle box buys nothing** — it lifts a limit
-we are nowhere near. The Worker already exists and is already free; it needs no
-action beyond one setting change when the box is ready.
+against roughly 5 users before, when everyone outside NJ and CA shared 200/day.
+A hundred people generating twice on a Saturday morning is 3.3/minute against a
+box that does 50-80. The old ceiling was 2/minute, which is exactly why that
+hour was the failure case.
 
-The 30-60/min for Oracle is the only number here nobody has measured. HeiGIT's
-40/min, Cloudflare's 100k/day and the ~18 per generate are all documented or
-counted.
+**Retracted: "paying Cloudflare $5 buys nothing."** That was true while HeiGIT's
+200/day was the binding limit — the Worker's ceiling was unreachable behind it.
+The box has now removed that constraint, so the Worker genuinely is the next
+wall. The paid plan is 10M requests/month, about 333k/day, so **~18,500
+generates/day or roughly 9,000 users**. Not needed yet. No longer pointless.
+
+**HeiGIT is still being spent, and not only by the excluded regions.** Every
+fallback costs quota. Chicago fails roughly half its seeds on our graph, so a
+Chicago generate spends ~6 HeiGIT requests, which is **200 ÷ 6 ≈ 33 lakeside
+generates/day** shared globally with Hawaii, Alaska and the border strips. "Free
+retries" is true of retries against our own box and **not** of fallbacks. Inland
+users spend no HeiGIT quota at all.
+
+So the honest statement of the ceiling is still geographic, but the geography
+inverted: **inside the served boxes the app supports thousands of users; outside
+them, and in the Great Lakes fallback path, it is still tens of generates a
+day.**
+
+### The state before 2026-09-03, kept because it explains the numbers above
+
+Both HeiGIT rows applied everywhere outside New Jersey and California. Those two
+states were served by our own box from 2026-08-30; everyone else spent HeiGIT's
+allowance, which read 2000/day on 2026-08-23 and 200/day on 2026-08-27, cut by
+HeiGIT rather than by us.
+
+Measured 2026-09-02, on approval day: still `x-ratelimit-limit: 200`, Marlboro
+and Cupertino `self`, Chicago `heigit`. Outside the two states the app supported
+single-digit generates per day across every install on earth — less than one App
+Review pass consumes. That is the number the widening was done against.
 
 ## Oracle routing: deployed, not yet switched on
 
