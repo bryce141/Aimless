@@ -30,14 +30,40 @@ const MAX_BODY_BYTES = 8 * 1024;
  * graph's real edge that a 100 km round trip cannot reach it, and HeiGIT, who
  * host the whole planet, keeps everywhere else.
  *
- * - `nj`  NJ only, against a graph holding NJ + PA + NY + DE. Nearest graph
- *         edge is hundreds of kilometres away. Shipped and measured 2026-08-20.
- * - `ca`  California, inset from the land borders it shares with Oregon,
- *         Nevada, Arizona and Mexico — roughly 65 km at the north edge and far
- *         more elsewhere. The west edge is the Pacific, which is a real end of
- *         the road network rather than an artefact of the extract, so it needs
- *         no inset. San Diego falls outside on purpose: it sits 22 km from the
- *         Mexican border, well inside the clipping distance.
+ * Since 2026-09-03 the graph holds the whole United States, so the only real
+ * edges left are the Canadian and Mexican land borders. **Coastlines are not
+ * edges in this sense** — the road network genuinely stops at the water, so a
+ * route clipped by the Atlantic is a correct route, not an artefact.
+ *
+ * **One box cannot express the country.** The Canadian border needs a ~65 km
+ * inset in the north, and the Mexican border needs one in the south-west — but
+ * a single `minLat` inset from Mexico would cut Miami, which sits 1,900 km from
+ * that border. Hence a north box and a south-east box, split at the latitude
+ * above which Mexico stops mattering.
+ *
+ * - `nj`  NJ only. Shipped and measured 2026-08-20, now a subset of `us_north`
+ *         and kept so a rollback to the proven pair stays one setting away.
+ * - `ca`  California, inset from Oregon, Nevada, Arizona and Mexico. Also now a
+ *         subset of `us_north`. Kept for the same reason.
+ * - `us_north`  Everything above 33.5°N, which clears the Mexican border's
+ *         northernmost point (32.72°N at the Colorado River) by ~87 km. Capped
+ *         at 48.4°N, ~65 km south of the 49th parallel. Costs a thin northern
+ *         strip — Bellingham WA, the Montana and North Dakota border towns.
+ * - `us_southeast`  Below 33.5°N and east of -96.0, which is ~114 km east of
+ *         the Rio Grande's easternmost point at Brownsville. Florida, the Gulf
+ *         coast and eastern Texas. Miami and the Keys included; the coast needs
+ *         no inset.
+ *
+ * Deliberately still on HeiGIT, and each for its own reason:
+ *   - **Hawaii.** Measured 0/10 on `round_trip` against this graph where HeiGIT
+ *     returns 4/5. The roads are present — point-to-point works — but the
+ *     round-trip generator cannot place waypoints on a 44 km wide island. No
+ *     retry rescues a zero, so routing it here would be strictly worse.
+ *   - **Alaska.** 2/5, and its real problem is road sparsity that HeiGIT shares:
+ *     a 33 km request already comes back as a six-hour loop. Worth revisiting,
+ *     not worth a bespoke box tonight.
+ *   - **The south-west border strip** — San Diego, Tucson, El Paso, Laredo.
+ *     Inside the clipping distance of the Mexican border.
  *
  * Which of these are live is `SELF_HOSTED_REGIONS`, not this table — see
  * `coveredRegions`. Adding a box here does not route anything to it.
@@ -45,6 +71,10 @@ const MAX_BODY_BYTES = 8 * 1024;
 const REGIONS = {
   nj: { minLon: -75.56, maxLon: -73.89, minLat: 38.93, maxLat: 41.36 },
   ca: { minLon: -124.4, maxLon: -117.5, minLat: 33.5, maxLat: 41.4 },
+  us_north: { minLon: -124.8, maxLon: -66.9, minLat: 33.5, maxLat: 48.4 },
+  us_southeast: { minLon: -96.0, maxLon: -79.0, minLat: 24.4, maxLat: 33.5 },
+  us_texas: { minLon: -98.8, maxLon: -96.0, minLat: 28.5, maxLat: 33.5 },
+  us_southwest: { minLon: -114.5, maxLon: -109.1, minLat: 32.1, maxLat: 33.5 },
 };
 
 /**

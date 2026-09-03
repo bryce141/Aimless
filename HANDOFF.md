@@ -233,20 +233,66 @@ A generate fires 12 seeds and needs 3 survivors, then filters on duration. At
 HeiGIT, so we may still be ahead there. At 0/10 no amount of retrying helps, so
 **Hawaii must stay on HeiGIT.**
 
-### Still to do after the build
+### The Worker is widened and live — 2026-09-03
 
-**Widening the Worker is a separate deploy, and the order is load-bearing** —
-graph first, `SELF_HOSTED_REGIONS` second. See DEPLOY.md.
+Deployed version `a7ca9cee-5434-4292-852f-ea9e500b7d1d`.
+`SELF_HOSTED_REGIONS = "nj,ca,us_north,us_southeast,us_texas,us_southwest"`.
 
-`REGIONS` in `worker/src/index.js` needs new boxes, and **a single bounding box
-cannot express the country**. The inset exists so a loop cannot reach the edge
-of the graph, and with `us-latest` the only edges left are the Canadian and
-Mexican land borders — coastlines are not edges in this sense, because the road
-network genuinely stops at the water. Insetting 65 km from the Canadian border
-costs a thin northern strip. Insetting the same amount from the Mexican border
-would cut Miami, because one `minLat` cannot be inset in Texas and not in
-Florida. So it needs more than one box, which `SELF_HOSTED_REGIONS` already
-supports as a list.
+**A single bounding box cannot express the country**, because the inset that
+keeps a loop away from a graph edge has to apply in the north and the south-west
+and nowhere else. One `minLat` inset from Mexico would cut Miami, 1,900 km away.
+Six boxes, four of them new:
+
+| Box | Covers | Inset from |
+|---|---|---|
+| `us_north` | above 33.5°N, coast to coast, capped 48.4°N | Canada by ~65 km; Mexico by ~87 km |
+| `us_southeast` | below 33.5°N, east of -96.0 — Florida, Gulf, east Texas | Rio Grande by ~114 km |
+| `us_texas` | -98.8 to -96.0, 28.5-33.5°N — Dallas, Austin, San Antonio | Laredo by ~130 km |
+| `us_southwest` | -114.5 to -109.1, 32.1-33.5°N — Phoenix, Tucson | Sonora by ~85 km |
+| `nj`, `ca` | now subsets of `us_north` | kept so rollback to the proven pair is one setting |
+
+`nj` and `ca` being redundant is deliberate. Reverting to `"nj,ca"` restores
+exactly the configuration that has been serving since 2026-08-30.
+
+**Verified through the live Worker**: Marlboro NJ, Cupertino, Denver, Austin,
+Dallas, Phoenix, Miami, Seattle and Boston all return
+`x-aimless-served-by: self`. Honolulu and San Diego return `heigit`, which is
+correct — both are deliberately outside every box.
+
+**`heigit` in a single response does not mean the region is off.** Chicago
+returned `self` twice and `heigit` three times across five seeds. That is the
+fallback working exactly as designed: our box fails a seed, the Worker retries
+HeiGIT, and the user still gets a route. Seattle looked like a region miss on
+one sample and came back 5/5 `self` on five. **Always test a region with several
+seeds before concluding it is not covered.**
+
+### Two corrections to earlier reasoning in this file
+
+- **Water borders are not graph edges.** Detroit sits 37 km from Canada and
+  Buffalo 16 km, both inside the 65 km rule, and both are fine — the border
+  there is the Detroit and Niagara rivers, where the US road network genuinely
+  ends. Measured: Detroit 4/8 and Buffalo 3/8 on `round_trip`, but the loops
+  that succeed average 45.3 km and 42.6 km against 33 km requested, next to
+  Denver's 40.3 km. **Not clipped short**, which is the hazard the inset exists
+  to prevent. The inset is only needed where roads cross continuously — the 49th
+  parallel, and the Maine and Vermont land borders.
+- **The Great Lakes degrade `round_trip`, and it is survivable.** Chicago 5/10,
+  Detroit 4/8, Buffalo 3/8 against 10/10 inland. Routing them to us anyway is a
+  decision, taken 2026-09-03: worse per request, but a retry round is free here
+  and rationed at 200/day on HeiGIT, so a user near a lake gets more successful
+  generates from the degraded graph than from the good one they are allowed ten
+  of. Hawaii is the exception, because no retry rescues 0/10.
+
+### Still to do
+
+- **Alaska.** 2/5, no box, still on HeiGIT. Its real problem is road sparsity
+  that HeiGIT shares — a 33 km request already returns a six-hour loop.
+- **The `round_trip` failure near large water is unexplained.** Not snapping
+  radius; that was tested and disproved. The roads are present and
+  point-to-point routing works.
+- **Cloudflare Access** in front of the tunnel hostname is still genuinely open
+  — see the stale "What is left" list below, whose items 1 and 3 were done on
+  2026-08-20 and should be read as history.
 
 ## Rejected again 2026-08-19, and what fixed it
 
