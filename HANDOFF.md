@@ -88,11 +88,28 @@ section that explains it. Ordered by what bites first, not by size.
       Peak container memory during the US build was 11,295 MiB against 11,927
       MiB of RAM, so a rebuild without swap is a likely OOM kill. Persist both,
       and use `nofail` on the fstab line so a missing swapfile cannot block boot.
-- [ ] **Cloudflare Access in front of the tunnel hostname.** Open since August
-      and the one real security gap. An nginx gate checks a shared header, which
-      stops casual discovery, but anyone who learns `ors.workdocks.com` and that
-      value gets free routing on our box — the problem we left HeiGIT to avoid,
-      on infrastructure we are responsible for. Free on the current plan.
+- [ ] **Cloudflare Access in front of the tunnel hostname.** The Worker side is
+      **done and deployed** — see "Access: the Worker is ready, the policy is
+      not" below. What is left needs the Cloudflare dashboard, because the
+      wrangler OAuth token has no `access` scope and cannot create service
+      tokens or applications.
+
+      1. Zero Trust → Access → **Service Auth** → create a service token named
+         `aimless-worker`. **Copy both halves now**; the secret is shown once.
+      2. `wrangler secret put CF_ACCESS_CLIENT_ID` and
+         `wrangler secret put CF_ACCESS_CLIENT_SECRET`, from `worker/`.
+      3. Verify routing still works — it must, since Access is not enforcing yet.
+      4. Zero Trust → Access → **Applications** → self-hosted app for
+         `ors.workdocks.com`, one policy, action **Service Auth**, include the
+         `aimless-worker` token.
+      5. Verify immediately: `curl https://ors.workdocks.com/ors/v2/health`
+         with no credentials must fail at Cloudflare, and
+         `/health/selfhosted` on the Worker must still return `"state":"ok"`.
+
+      **Steps 1-3 before step 4, without exception.** Creating the policy first
+      makes every self-hosted request 403 until a secret lands, which drops the
+      entire country onto HeiGIT's 200/day in the gap. Rollback is deleting the
+      Access application.
 - [ ] **The health check's 503 path is untested.** The healthy path is verified
       end to end. Nothing has confirmed the alarm actually fires, because that
       needs a real outage. Treat it as unproven until it fires or is tested
@@ -745,10 +762,13 @@ Rollback is still `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy.
 1. **Cloudflare Tunnel — blocked on owning a domain.** Named tunnels require a
    zone in the Cloudflare account; quick tunnels are ephemeral and not for
    production. Roughly $10/year at Cloudflare Registrar if there isn't one.
-2. **Cloudflare Access with a service token** in front of the tunnel hostname,
-   with the Worker sending `CF-Access-Client-Id` / `CF-Access-Client-Secret`.
-   Without it the hostname is open routing for anyone who finds it — the same
-   problem we are leaving HeiGIT to avoid, except on a box we pay for.
+2. **Cloudflare Access with a service token** in front of the tunnel hostname.
+   ~~Without it the hostname is open routing for anyone who finds it.~~
+   **Corrected 2026-09-03 — that was wrong, and measured wrong.** See "Access:
+   the Worker is ready, the policy is not" below. The nginx gate holds: every
+   unauthenticated request to `ors.workdocks.com` is refused before it reaches
+   ORS. Access is still worth doing, but as defence in depth rather than as
+   closing a hole.
 3. **Set `SELF_HOSTED_ORIGIN`** to `https://ors.<domain>/ors` and deploy. **The
    `/ors` suffix is mandatory and omitting it fails silently** — see
    `worker/README.md`. Verify with the `X-Aimless-Served-By` response header,
@@ -756,6 +776,40 @@ Rollback is still `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy.
 
 Rollback is `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy. No app
 change, no review.
+
+### Access: the Worker is ready, the policy is not
+
+**The exposure was overstated in this file, and the measurement is worth
+keeping.** Tested 2026-09-03 against `ors.workdocks.com` with no credentials at
+all:
+
+| Request | Result |
+|---|---|
+| `GET /ors/v2/health` | **403** |
+| `GET /ors/v2/directions/driving-car/geojson` | **403** |
+| `GET /` | **403** |
+| `POST` a real round-trip route | **403**, nginx, before ORS |
+
+So it is a shared secret, not an open door. What Access actually buys is
+narrower than "closing a hole" and still real:
+
+- **Rejection moves to Cloudflare's edge.** Today an attacker's request travels
+  the tunnel and is refused by nginx *on the box*, so it costs our CPU. That is
+  a denial-of-service surface on two Ampere cores.
+- **The credential becomes rotatable and auditable.** `SELF_HOSTED_TOKEN` is
+  static, has never been rotated, and nothing logs attempts against it.
+
+**The Worker half is deployed** (version `7c8656f6`). `trySelfHosted` and the
+health probe both send `CF-Access-Client-Id` / `CF-Access-Client-Secret` when
+both secrets exist, and send nothing when they do not — so the deployed code is
+a no-op today and becomes correct the moment the secrets are set, with no code
+change at the risky moment. Verified after deploy: Denver and Marlboro still
+`self`, health still `ok`.
+
+The health probe sends the same credentials as real traffic **on purpose**. A
+probe that authenticates differently would report the box healthy while every
+real request was being refused, which is the one failure a monitor must not
+have.
 
 ### Watch for
 

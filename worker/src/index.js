@@ -168,8 +168,16 @@ async function selfHostedHealth(env) {
   }
 
   try {
+    // Same credentials the routing path sends. The probe has to authenticate
+    // exactly as real traffic does, or it reports the box healthy while every
+    // actual request is being refused — a monitor that cannot see the failure
+    // it exists to catch.
     const headers = {};
     if (env.SELF_HOSTED_TOKEN) headers["X-Aimless-Origin"] = env.SELF_HOSTED_TOKEN;
+    if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+      headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+      headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+    }
 
     const res = await fetch(`${env.SELF_HOSTED_ORIGIN}/v2/health`, {
       method: "GET",
@@ -274,7 +282,7 @@ export default {
     // before any server exists.
     if (env.SELF_HOSTED_ORIGIN && originIsCovered(body, coveredRegions(env))) {
       const local = await trySelfHosted(
-        env.SELF_HOSTED_ORIGIN, body, env.SELF_HOSTED_TOKEN, store);
+        env.SELF_HOSTED_ORIGIN, body, env.SELF_HOSTED_TOKEN, store, env);
       if (local) return local;
       // Fall through to HeiGIT. A dead box is a slower app, not a broken one.
     }
@@ -330,7 +338,7 @@ export default {
  * a second opinion from HeiGIT. A 429 can't happen here; there is no limit to
  * hit, which is the entire reason this path exists.
  */
-async function trySelfHosted(origin, body, token, store) {
+async function trySelfHosted(origin, body, token, store, env) {
   try {
     const headers = {
       "Content-Type": "application/json",
@@ -338,10 +346,28 @@ async function trySelfHosted(origin, body, token, store) {
     };
     // The tunnel hostname is public — Cloudflare serves it to anyone who knows
     // the name — and ORS has no notion of auth. A gate at the origin checks
-    // this header and 403s everything else, so without it our box would be free
-    // routing for strangers: the same problem we left HeiGIT to escape, on
-    // hardware we pay for.
+    // this header and 403s everything else.
+    //
+    // **Verified 2026-09-03: the gate holds.** Every unauthenticated request to
+    // ors.workdocks.com is refused by nginx before it reaches ORS — GET and
+    // POST, health and routing, all 403. So this is a shared secret rather than
+    // an open door, and earlier wording in HANDOFF calling it "open routing for
+    // anyone who finds it" was wrong.
     if (token) headers["X-Aimless-Origin"] = token;
+
+    // Cloudflare Access service token, when one exists. Both secrets unset is
+    // the current state and a deliberate no-op — sending nothing leaves the
+    // nginx gate as the only check, which is exactly what is live today.
+    //
+    // This is here **before** the Access application exists so that turning
+    // Access on is two `wrangler secret put` calls and no code change. The
+    // dangerous ordering is the reverse: create the Access policy first and
+    // every self-hosted request 403s until a deploy lands, which would drop the
+    // whole country onto HeiGIT's 200/day in the meantime.
+    if (env?.CF_ACCESS_CLIENT_ID && env?.CF_ACCESS_CLIENT_SECRET) {
+      headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+      headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
+    }
 
     const response = await fetch(origin + ALLOWED_PATH, {
       method: "POST",
