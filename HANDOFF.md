@@ -166,6 +166,73 @@ overnight session left behind.
 Disk is no longer a constraint and the figure under Environment is stale: the
 volume is **145 GB with 121 GB free**, not the 48 GB it records.
 
+### The build finished 2026-09-03 22:21Z — 6h40m
+
+**It worked, and it nearly did not fit.**
+
+| | NJ+CA | Whole US |
+|---|---|---|
+| Extract | 2.3 GB | 11.28 GB |
+| Graph | 2.4 GB | **15 GB** |
+| Nodes | 9,097,006 | **55,953,477** |
+| Edges | 11,487,713 | **70,387,384** |
+| Build | 40 min | **400 min** |
+| Peak heap | 4,354 MiB | **8,021 MiB of 8,192** |
+
+**171 MiB of heap headroom.** The estimate of 5.0-5.7 GB was wrong and so is the
+rule it came from — `selfhost/README.md` says six times the map cost 15% more
+heap, and that does not hold at this size. Peak *container* memory hit 11,295
+MiB against 11,927 MiB of physical RAM, so **the 8 GB swapfile added mid-build
+is what kept the OOM killer away**. Do not attempt this size again without it.
+
+Scaling is superlinear where it hurts. Nodes and edges grew 6.1x; `PrepareCore`
+grew 8.1x, from 284s to 2,289s. The four landmark sets took 46, 46, 60 and ~60
+minutes against roughly 6 minutes each before. Both phases are single-threaded
+by config (`core.threads: 1`, `lm.threads: 1`) on two Ampere cores.
+
+**Alaska and Hawaii are in it.** Graph bounds are
+`-178.09, 174.15, 18.91, 71.36` — the longitude range crosses the antimeridian
+because of the Aleutians, and 18.91°N is the south point of the island of
+Hawaii. That settles the question the PBF header could not.
+
+**Restarting is now cheap: 20 seconds** to load the 15 GB graph over MMAP, once
+`REBUILD_GRAPHS` is `"False"`. It is back to `"False"` as of 22:2xZ.
+
+### Where the new graph is worse than HeiGIT, measured
+
+**Do not widen the Worker on the assumption that a bigger graph is uniformly
+better. It is not.** Same seeds, same request, `round_trip` at 33 km:
+
+| Origin | Our US graph | HeiGIT |
+|---|---|---|
+| Marlboro NJ | 10/10 | — |
+| Denver CO | 10/10 | — |
+| Austin TX | 10/10 | — |
+| Cupertino CA | 9/10 | — |
+| **Chicago IL** | **5/10** | **5/5** |
+| **Honolulu HI** | **0/10** | **4/5** |
+
+**The graph is not missing those roads.** Point-to-point routing succeeds in
+both places — Honolulu→Kaneohe 10.8 mi, Honolulu→Kailua 11.9 mi,
+Chicago→Evanston 13.4 mi, Chicago→Naperville 30.4 mi. Only `round_trip` fails,
+with `code 2099, "Could not find a valid point after 3 tries"`. That error is
+the round-trip generator throwing a waypoint somewhere it cannot snap.
+
+**`maximum_snapping_radius` was the obvious hypothesis and it is wrong.** Ours
+was unset, so the ORS default of 400 m applied. Raising it to 3,000 m and
+restarting changed nothing at all: Chicago 5/10, Honolulu 0/10, NJ 10/10 —
+identical. Reverted. Do not spend time on it again.
+
+The pattern is large adjacent water: Lake Michigan for Chicago, the Pacific for
+an island 44 km wide. It is not simple coastline, because Seattle and Cupertino
+are fine. The mechanism is still unexplained.
+
+**What it means for the app is not symmetrical with what it means per request.**
+A generate fires 12 seeds and needs 3 survivors, then filters on duration. At
+5/10 Chicago is degraded but a retry round is *free* on our box and rationed on
+HeiGIT, so we may still be ahead there. At 0/10 no amount of retrying helps, so
+**Hawaii must stay on HeiGIT.**
+
 ### Still to do after the build
 
 **Widening the Worker is a separate deploy, and the order is load-bearing** —
