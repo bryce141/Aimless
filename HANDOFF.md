@@ -76,7 +76,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~4~~ | **B** | ~~"What's New" text~~ — **done**, build 6 submitted |
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
-| 7 | **B** | Delete the stray `imless` Worker |
+| ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
 | 9 | | Explain the `round_trip` failure near large water |
 | 10 | | Give Alaska a region box |
@@ -172,10 +172,15 @@ fallback is not a safety net that lasts — at ~18 requests per generate it is
 roughly two generates of grace. If the box dies on a Saturday morning, HeiGIT
 buys minutes, not hours. That is the argument for the monitor mattering.
 
-**7. Delete the stray `imless` Worker.** *(Bryce)* Whenever next in the
-Cloudflare dashboard. Not urgent — it serves `docs/index.html`, already public
-on GitHub Pages, so nothing is exposed. It does share the account-wide 100k
-requests/day, which is now the binding ceiling.
+**7. ~~Delete the stray `imless` Worker~~ — done 2026-09-03.** Gone; the
+hostname 404s and `aimless-routing` is unaffected. The local
+`wrangler.jsonc.stray-*` is deleted too, and both it and any future one are
+gitignored.
+
+**How it happened, because the trap is easy to re-enter:** `npx wrangler deploy`
+run from the repo root instead of `worker/` finds no config, so wrangler writes
+one and deploys whatever it infers — here `docs/` as a Worker named after the
+directory. Always deploy from `worker/`.
 
 **8. Reclaim ~5 GB on the box** once the US graph has run a few days without
 complaint: `graphs.nj-ca` (2.4 GB, the rollback) and `graphs.with-elevation`
