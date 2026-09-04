@@ -61,79 +61,105 @@ proposing it — it has been raised and answered.
 ## Open checklist
 
 Kept current. Everything here is unfinished; anything finished moves into the
-section that explains it. Ordered by what bites first, not by size.
+section that explains it. **Numbers are stable identifiers — refer to "task 3"
+and it will mean the same thing next week.** When one is done, mark it `[x]` and
+leave the number in place rather than renumbering the rest.
 
-### Needs Bryce — cannot be done from a session
+Ordered by what bites first, not by size. **B** = only Bryce can do it.
 
-- [ ] **Upload and submit build 6** (1.0.1, the 30-minute slider). Archived in
-      Xcode on 2026-09-02, never uploaded. The box is back in service, so the
-      reason to wait is gone. Only item on this list a user would notice.
-- [ ] **"What's New" text** for the 1.0.1 version record. Draft in the session
-      of 2026-09-03; nothing written to `store/` yet.
-- [ ] **Point an uptime monitor at
-      `https://aimless-routing.bdrp777.workers.dev/health/selfhosted`.**
-      UptimeRobot free tier. 200 = healthy, anything else = alert, which is
-      every monitor's default, so the URL is the whole configuration. **Until
-      this exists the health endpoint tells nobody anything.**
-- [ ] **Delete the stray `imless` Worker** whenever next in the Cloudflare
-      dashboard. Not urgent — it serves `docs/index.html`, already public on
-      GitHub Pages. It does share the account-wide 100k requests/day, which is
-      now the binding ceiling.
+| # | | What |
+|---|---|---|
+| 1 | **B** | Point an uptime monitor at the health endpoint |
+| 2 | **B** | Upload and submit build 6 |
+| 3 | | Persist the swapfile |
+| 4 | **B** | "What's New" text for 1.0.1 |
+| 5 | **B** | Finish Cloudflare Access (Worker side already done) |
+| 6 | | Test the health check's failure path |
+| 7 | **B** | Delete the stray `imless` Worker |
+| 8 | | Reclaim ~5 GB of old graphs on the box |
+| 9 | | Explain the `round_trip` failure near large water |
+| 10 | | Give Alaska a region box |
+| 11 | | Correct `selfhost/README.md` on build memory |
+| 12 | | Clean up the stale "What is left" list |
 
-### Infrastructure
+**1. Point an uptime monitor at
+`https://aimless-routing.bdrp777.workers.dev/health/selfhosted`.** *(Bryce)*
+UptimeRobot free tier. 200 = healthy, anything else = alert, which is every
+monitor's default, so the URL is the whole configuration. **Until this exists
+the health endpoint tells nobody anything** — it is the only task here that
+gates another one already built. Expect it to fire during any future graph
+rebuild, correctly: during a rebuild the country really is on HeiGIT's 200/day.
 
-- [ ] **The swapfile is not persistent, and it is what saved the last build.**
-      `/swapfile` is live with 8 GB but has **no `/etc/fstab` entry**, and
-      `vm.swappiness=10` is not in `/etc/sysctl.d/`. Both are lost on reboot.
-      Peak container memory during the US build was 11,295 MiB against 11,927
-      MiB of RAM, so a rebuild without swap is a likely OOM kill. Persist both,
-      and use `nofail` on the fstab line so a missing swapfile cannot block boot.
-- [ ] **Cloudflare Access in front of the tunnel hostname.** The Worker side is
-      **done and deployed** — see "Access: the Worker is ready, the policy is
-      not" below. What is left needs the Cloudflare dashboard, because the
-      wrangler OAuth token has no `access` scope and cannot create service
-      tokens or applications.
+**2. Upload and submit build 6** (1.0.1, the 30-minute slider). *(Bryce)*
+Archived in Xcode on 2026-09-02, never uploaded. The box is back in service, so
+the reason to wait is gone. The only task here a user would ever notice.
 
-      1. Zero Trust → Access → **Service Auth** → create a service token named
-         `aimless-worker`. **Copy both halves now**; the secret is shown once.
-      2. `wrangler secret put CF_ACCESS_CLIENT_ID` and
-         `wrangler secret put CF_ACCESS_CLIENT_SECRET`, from `worker/`.
-      3. Verify routing still works — it must, since Access is not enforcing yet.
-      4. Zero Trust → Access → **Applications** → self-hosted app for
-         `ors.workdocks.com`, one policy, action **Service Auth**, include the
-         `aimless-worker` token.
-      5. Verify immediately: `curl https://ors.workdocks.com/ors/v2/health`
-         with no credentials must fail at Cloudflare, and
-         `/health/selfhosted` on the Worker must still return `"state":"ok"`.
+**3. Persist the swapfile — it is what saved the last build.** `/swapfile` is
+live with 8 GB but has **no `/etc/fstab` entry**, and `vm.swappiness=10` is not
+in `/etc/sysctl.d/`. Both are lost on reboot. Peak container memory during the
+US build was 11,295 MiB against 11,927 MiB of RAM, so a rebuild on a rebooted
+box is a likely OOM kill. Use `nofail` on the fstab line so a missing swapfile
+can never block boot.
 
-      **Steps 1-3 before step 4, without exception.** Creating the policy first
-      makes every self-hosted request 403 until a secret lands, which drops the
-      entire country onto HeiGIT's 200/day in the gap. Rollback is deleting the
-      Access application.
-- [ ] **The health check's 503 path is untested.** The healthy path is verified
-      end to end. Nothing has confirmed the alarm actually fires, because that
-      needs a real outage. Treat it as unproven until it fires or is tested
-      deliberately.
-- [ ] **Reclaim ~5 GB on the box** once the US graph has run a few days without
-      complaint: `graphs.nj-ca` (2.4 GB, the rollback) and
-      `graphs.with-elevation` (2.5 GB, superseded — elevation is off by
-      decision). Disk is at 93 GB free, so there is no hurry.
+**4. "What's New" text** for the 1.0.1 version record. *(Bryce)* Drafted in the
+session of 2026-09-03; nothing written to `store/` yet.
 
-### Loose ends from the US build
+**5. Finish Cloudflare Access.** *(Bryce — needs the dashboard)* The Worker side
+is **done and deployed**; see "Access: the Worker is ready, the policy is not"
+below. The rest cannot be done from a session because the wrangler OAuth token
+has no `access` scope. Note this is defence in depth, **not** closing a hole —
+the nginx gate was measured and holds.
 
-- [ ] **Alaska has no region box** and stays on HeiGIT at 2/5. Its real problem
-      is road sparsity HeiGIT shares — a 33 km request returns a six-hour loop.
-- [ ] **The `round_trip` failure near large water is unexplained.** Chicago
-      5/10, Detroit 4/8, Buffalo 3/8, Honolulu 0/10, against 10/10 inland. The
-      roads are present — point-to-point routing works in all of them. Snapping
-      radius was tested and disproved; do not retry it.
-- [ ] **`selfhost/README.md` is wrong about build memory.** It says six times
-      the map cost 15% more heap. At country scale that broke badly: 4,354 MiB
-      to 8,021 MiB for 6.1x the nodes, against an 8,192 MiB ceiling. Correct it
-      before anyone sizes a build off that sentence.
-- [ ] **The "What is left" list under Oracle routing is stale.** Items 1 and 3
-      were done on 2026-08-20 and should read as history. Item 2, Cloudflare
-      Access, is the live one and is listed above.
+  - **A.** Zero Trust → Access → **Service Auth** → create a service token named
+    `aimless-worker`. **Copy both halves now**; the secret is shown once.
+  - **B.** From `worker/`: `wrangler secret put CF_ACCESS_CLIENT_ID` and
+    `wrangler secret put CF_ACCESS_CLIENT_SECRET`.
+  - **C.** Verify routing still works. It must — Access is not enforcing yet.
+  - **D.** Zero Trust → Access → **Applications** → self-hosted app for
+    `ors.workdocks.com`, one policy, action **Service Auth**, include the
+    `aimless-worker` token.
+  - **E.** Verify immediately: `curl https://ors.workdocks.com/ors/v2/health`
+    with no credentials must fail at Cloudflare, and `/health/selfhosted` on the
+    Worker must still return `"state":"ok"`.
+
+  **A-C before D, without exception.** Creating the policy first makes every
+  self-hosted request 403 until a secret lands, dropping the entire country onto
+  HeiGIT's 200/day in the gap. Rollback is deleting the Access application.
+
+**6. Test the health check's failure path.** The healthy path is verified end to
+end. Nothing has confirmed the alarm actually fires, because that needs a real
+outage. Treat it as unproven until it fires on its own or is tested
+deliberately. Cheapest honest test is during task 8 or the next rebuild.
+
+**7. Delete the stray `imless` Worker.** *(Bryce)* Whenever next in the
+Cloudflare dashboard. Not urgent — it serves `docs/index.html`, already public
+on GitHub Pages, so nothing is exposed. It does share the account-wide 100k
+requests/day, which is now the binding ceiling.
+
+**8. Reclaim ~5 GB on the box** once the US graph has run a few days without
+complaint: `graphs.nj-ca` (2.4 GB, the rollback) and `graphs.with-elevation`
+(2.5 GB, superseded — elevation is off by decision). Disk is at 93 GB free, so
+there is no hurry, and `graphs.nj-ca` is the two-minute restore if anything
+about the US graph turns out to be wrong.
+
+**9. Explain the `round_trip` failure near large water.** Chicago 5/10, Detroit
+4/8, Buffalo 3/8, Honolulu 0/10, against 10/10 inland. The roads are present —
+point-to-point routing works in all of them. Snapping radius was tested and
+disproved; **do not retry it.** This is the only genuinely interesting problem
+left, and solving it is what would let Hawaii and the Great Lakes work properly
+rather than being routed around.
+
+**10. Give Alaska a region box.** Currently on HeiGIT at 2/5, no box. Its real
+problem is road sparsity HeiGIT shares — a 33 km request returns a six-hour
+loop — so this is worth little until task 9 is understood.
+
+**11. Correct `selfhost/README.md` on build memory.** It says six times the map
+cost 15% more heap. At country scale that broke badly: 4,354 MiB to 8,021 MiB
+for 6.1x the nodes, against an 8,192 MiB ceiling. Fix it before anyone sizes a
+build off that sentence.
+
+**12. Clean up the stale "What is left" list** under Oracle routing. Items 1 and
+3 were done on 2026-08-20 and should read as history. Item 2 is task 5 above.
 
 ## Widening to the whole country — in flight 2026-09-03
 
