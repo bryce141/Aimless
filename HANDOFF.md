@@ -74,7 +74,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~2~~ | **B** | ~~Upload and submit build 6~~ — **done 2026-09-03** |
 | ~~3~~ | | ~~Persist the swapfile~~ — **done 2026-09-03** |
 | ~~4~~ | **B** | ~~"What's New" text~~ — **done**, build 6 submitted |
-| 5 | **B** | Finish Cloudflare Access (Worker side already done) |
+| ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | 6 | | Test the health check's failure path (notification path proven) |
 | 7 | **B** | Delete the stray `imless` Worker |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
@@ -132,27 +132,24 @@ possible moment otherwise.
 **4. ~~"What's New" text~~ — done 2026-09-03**, implicitly: Apple does not
 accept an update without it, and build 6 is submitted.
 
-**5. Finish Cloudflare Access.** *(Bryce — needs the dashboard)* The Worker side
-is **done and deployed**; see "Access: the Worker is ready, the policy is not"
-below. The rest cannot be done from a session because the wrangler OAuth token
-has no `access` scope. Note this is defence in depth, **not** closing a hole —
-the nginx gate was measured and holds.
+**5. ~~Cloudflare Access~~ — done 2026-09-03.** Enforcing on
+`ors.workdocks.com` via service token `aimless-worker`, policy `worker-only`,
+action **Service Auth**.
 
-  - **A.** Zero Trust → Access → **Service Auth** → create a service token named
-    `aimless-worker`. **Copy both halves now**; the secret is shown once.
-  - **B.** From `worker/`: `wrangler secret put CF_ACCESS_CLIENT_ID` and
-    `wrangler secret put CF_ACCESS_CLIENT_SECRET`.
-  - **C.** Verify routing still works. It must — Access is not enforcing yet.
-  - **D.** Zero Trust → Access → **Applications** → self-hosted app for
-    `ors.workdocks.com`, one policy, action **Service Auth**, include the
-    `aimless-worker` token.
-  - **E.** Verify immediately: `curl https://ors.workdocks.com/ors/v2/health`
-    with no credentials must fail at Cloudflare, and `/health/selfhosted` on the
-    Worker must still return `"state":"ok"`.
+Verified after saving: an anonymous request to the hostname now returns **403
+from Cloudflare Access** rather than from nginx, so it never crosses the tunnel;
+the Worker's health probe still reads `state: ok`; and Denver, Marlboro and
+Dallas still route `self`.
 
-  **A-C before D, without exception.** Creating the policy first makes every
-  self-hosted request 403 until a secret lands, dropping the entire country onto
-  HeiGIT's 200/day in the gap. Rollback is deleting the Access application.
+**Use "Service Token", not "Any Access Service Token", in the include rule.**
+The latter matches every non-expired token in the account, so any future token
+created for something unrelated would also get free routing on the box. Same
+behaviour today with one token, wrong the moment there are two.
+
+The gain is narrower than it sounds and still worth it: rejection moved to
+Cloudflare's edge, where before an attacker's request crossed the tunnel and was
+refused by nginx *on our own two cores*. The credential is also now rotatable
+and auditable, where `SELF_HOSTED_TOKEN` is static and nothing logs attempts.
 
 **6. Test the health check's failure path.** The healthy path is verified end to
 end. Nothing has confirmed the alarm actually fires, because that needs a real
