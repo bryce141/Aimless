@@ -77,7 +77,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
-| 8 | | Reclaim ~5 GB of old graphs on the box |
+| 8 | | Reclaim 2.4 GB (`graphs.nj-ca`) — **deliberate wait**, not blocked |
 | ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
@@ -182,11 +182,15 @@ run from the repo root instead of `worker/` finds no config, so wrangler writes
 one and deploys whatever it infers — here `docs/` as a Worker named after the
 directory. Always deploy from `worker/`.
 
-**8. Reclaim ~5 GB on the box** once the US graph has run a few days without
-complaint: `graphs.nj-ca` (2.4 GB, the rollback) and `graphs.with-elevation`
-(2.5 GB, superseded — elevation is off by decision). Disk is at 93 GB free, so
-there is no hurry, and `graphs.nj-ca` is the two-minute restore if anything
+**8. Reclaim the last 2.4 GB — a deliberate wait, not a blocked task.**
+`graphs.with-elevation` was deleted on 2026-09-03 (2.5 GB, the Aug 30 NJ+CA
+graph with elevation on, superseded by `graphs.nj-ca`). What remains is
+`graphs.nj-ca` itself, which is **the rollback**: a two-minute restore to the
+two-state configuration that has been serving since 2026-08-30, if anything
 about the US graph turns out to be wrong.
+
+Disk is at 96 GB free, so it costs nothing to keep. Delete it once the US graph
+has a few days of real use behind it — not before.
 
 **9. ~~Explain the `round_trip` failure near large water~~ — done 2026-09-03.**
 **It is requested loop size, not location**, and it is geometry rather than a
