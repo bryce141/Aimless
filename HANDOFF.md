@@ -78,7 +78,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
-| 9 | | Explain the `round_trip` failure near large water |
+| ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
 | 10 | | Give Alaska a region box |
 | 11 | | Correct `selfhost/README.md` on build memory |
 | 12 | | Clean up the stale "What is left" list |
@@ -188,12 +188,40 @@ complaint: `graphs.nj-ca` (2.4 GB, the rollback) and `graphs.with-elevation`
 there is no hurry, and `graphs.nj-ca` is the two-minute restore if anything
 about the US graph turns out to be wrong.
 
-**9. Explain the `round_trip` failure near large water.** Chicago 5/10, Detroit
-4/8, Buffalo 3/8, Honolulu 0/10, against 10/10 inland. The roads are present —
-point-to-point routing works in all of them. Snapping radius was tested and
-disproved; **do not retry it.** This is the only genuinely interesting problem
-left, and solving it is what would let Hawaii and the Great Lakes work properly
-rather than being routed around.
+**9. ~~Explain the `round_trip` failure near large water~~ — done 2026-09-03.**
+**It is requested loop size, not location**, and it is geometry rather than a
+bug. Success by requested length, five seeds each:
+
+| Origin | 6.5 km | 15 km | 33 km | 50 km |
+|---|---|---|---|---|
+| Denver (inland) | 5/5 | 5/5 | 5/5 | 5/5 |
+| Chicago | 5/5 | 3/5 | 2/5 | 1/5 |
+| Honolulu | 3/5 | 4/5 | 0/5 | 2/5 |
+
+Denver is flat at every size. The coastal origins fall away as the loop grows,
+because the generator places waypoints on a ring whose radius scales with the
+requested distance, and a coastal origin has roughly half a circle of usable
+land. Bigger loop, more of the ring in water.
+
+**Three explanations tested and eliminated, so nobody repeats them:**
+
+- *Not snapping.* Every coordinate reported as "could not find a valid point"
+  routes fine as a point-to-point start — Chicago 41.912,-87.625, Detroit
+  42.369,-82.942, Honolulu 21.354,-157.813, all OK.
+- *Not missing roads.* Point-to-point works throughout all three cities.
+- *Not `maximum_snapping_radius`.* Raised from the 400 m default to 3,000 m and
+  restarted: Chicago 5/10, Honolulu 0/10, NJ 10/10 — identical. Reverted.
+
+**The error message misleads and it is worth knowing why.** ORS reports the last
+of three retries, and each retry pulls the point back toward the origin, so the
+coordinate printed is usually dry land in a dense city even though the original
+attempt was over water.
+
+**Product consequence:** the 30-minute option added on 2026-09-02 (6,500 m)
+works everywhere — Chicago 5/5, Honolulu 3/5. Failures concentrate in the 60,
+90 and 120 minute sizes. A Honolulu user asking for a two-hour back-road loop is
+asking for something a 44 km wide island cannot geometrically provide, and no
+routing backend fixes that.
 
 **10. Give Alaska a region box.** Currently on HeiGIT at 2/5, no box. Its real
 problem is road sparsity HeiGIT shares — a 33 km request returns a six-hour
