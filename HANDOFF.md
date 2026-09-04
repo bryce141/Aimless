@@ -161,6 +161,10 @@ left down if the session died.
 | Health endpoint while down | `{"ok":false,"state":"down","upstreamStatus":502}`, HTTP 503 |
 | App during the outage | HTTP 200, `served-by: heigit` — users unaffected |
 | Recovery | `state: ok` at 43 ms, container healthy |
+| Alert | down **and** recovery emails both received by Bryce |
+
+So the whole chain is proven end to end: the box failing, the endpoint noticing,
+the monitor detecting, and a message arriving. No link in it is assumed.
 
 **The outage exposed how thin the fallback is.** HeiGIT read
 `x-ratelimit-remaining: 33` of 200 during it, down from 156 that afternoon. The
