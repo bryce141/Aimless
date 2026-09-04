@@ -246,8 +246,32 @@ predicted ~10 GB and was wrong by 5x, because `graphs_data_access: MMAP` keeps
 the graph off-heap during the build too — the JVM heap holds working state, not
 the graph, so it stays roughly flat while disk and page cache absorb the growth.
 
-Disk and build time do scale with the extract. Heap does not. Anyone sizing a
-box should budget for the first two and stop worrying about the third.
+### That rule breaks at country scale — corrected 2026-09-03
+
+**"Heap does not scale" is false, and the previous version of this section said
+so in bold.** It held from 0.16 GB to 0.98 GB and then failed badly:
+
+| | NJ + PA + NY + DE | Whole US |
+|---|---|---|
+| PBF | 0.98 GB | 11.28 GB (11.5x) |
+| Nodes | 9,097,006 | 55,953,477 (6.1x) |
+| Graph on disk | 1.3 GB | 15 GB |
+| **Peak heap** | 1.96 GB | **8,021 MiB of an 8,192 MiB ceiling** |
+| Build time | 955 s | 24,000 s |
+
+171 MiB of headroom. Applying the 15% rule to the US predicted 5.0-5.7 GB and
+was wrong by roughly 2.5 GB in the direction that kills a build. Peak *container*
+memory reached 11,295 MiB against 11,927 MiB of physical RAM, and an 8 GB
+swapfile added mid-build is what kept the OOM killer away.
+
+Build time is superlinear too. Nodes grew 6.1x; `PrepareCore` grew 8.1x, and
+the four landmark preparations went from ~6 minutes each to 46, 46, 60 and 60.
+Both phases are single-threaded by config on two Ampere cores.
+
+**So: disk and build time scale, and heap scales too once the graph stops
+fitting comfortably.** Budget for all three. Do not size a country-scale build
+off the two-state numbers above — measure, keep swap available, and expect the
+contraction and landmark phases to dominate the clock.
 
 Extrapolating the whole US from this is still unwise, but the direction is
 clear: the binding constraints are disk (~21 GB of graph) and build hours, not

@@ -79,9 +79,9 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
 | ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
-| 10 | | Give Alaska a region box |
-| 11 | | Correct `selfhost/README.md` on build memory |
-| 12 | | Clean up the stale "What is left" list |
+| ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
+| ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
+| ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
 
 **1. ~~Uptime monitor~~ — done 2026-09-03.** UptimeRobot free tier, HTTP/S,
 5-minute interval, on `/health/selfhosted`. Test Notification confirmed the
@@ -223,17 +223,48 @@ works everywhere — Chicago 5/5, Honolulu 3/5. Failures concentrate in the 60,
 asking for something a 44 km wide island cannot geometrically provide, and no
 routing backend fixes that.
 
-**10. Give Alaska a region box.** Currently on HeiGIT at 2/5, no box. Its real
-problem is road sparsity HeiGIT shares — a 33 km request returns a six-hour
-loop — so this is worth little until task 9 is understood.
+**10. ~~Alaska region box~~ — done 2026-09-03, and Hawaii with it.**
+`SELF_HOSTED_REGIONS` now ends `,ak,hi`; deployed as version `d9861788`.
+Verified: Anchorage, Fairbanks and Honolulu all return `self` at the 30-minute
+size.
 
-**11. Correct `selfhost/README.md` on build memory.** It says six times the map
-cost 15% more heap. At country scale that broke badly: 4,354 MiB to 8,021 MiB
-for 6.1x the nodes, against an 8,192 MiB ceiling. Fix it before anyone sizes a
-build off that sentence.
+**The earlier reasoning for excluding them was wrong.** Both were left on HeiGIT
+because our graph does badly there — Honolulu 0/10 at 33 km, Anchorage 2/5 —
+with the note that "no retry rescues a zero." That treated it as a choice
+between our box and HeiGIT, and it is not one: `trySelfHosted` returns null on
+any non-200 and falls through to HeiGIT. **Adding a region can only add
+successes.** Whatever our graph fails, the user gets exactly today's behaviour.
 
-**12. Clean up the stale "What is left" list** under Oracle routing. Items 1 and
-3 were done on 2026-08-20 and should read as history. Item 2 is task 5 above.
+Measured at the app's four real request sizes, six seeds each:
+
+| Origin | 6,500 m (30 min) | 33,000 (60) | 70,000 (90) | 85,000 (120) |
+|---|---|---|---|---|
+| Anchorage | **6/6** | 2/6 | 0/6 | 0/6 |
+| Fairbanks | **6/6** | 1/6 | 0/6 | 0/6 |
+| Juneau | **6/6** | 0/6 | 0/6 | 0/6 |
+| Honolulu | **3/6** | 0/6 | 0/6 | 0/6 |
+
+So both regions gain a working 30-minute option and lose nothing. The only cost
+is a doubled upstream call on the sizes that fail, which is latency and no
+quota, because our box has no limit.
+
+`ak` stops at -142.3, about 65 km inside the -141 meridian border with Canada,
+so the south-east panhandle is outside on purpose — Juneau is ~40 km from
+British Columbia and its road network is isolated regardless. `hi` needs no
+inset; it is ocean on every side.
+
+**11. ~~Correct `selfhost/README.md` on build memory~~ — done 2026-09-03.** The
+file claimed "heap does not scale" in bold. True from 0.16 GB to 0.98 GB, false
+at country scale: 1.96 GB became 8,021 MiB against an 8,192 MiB ceiling. The
+15% rule predicted 5.0-5.7 GB for the US and was wrong by ~2.5 GB in the
+direction that kills a build. Now carries both tables and says to budget for
+heap, disk and time.
+
+**12. ~~Clean up the stale "What is left" list~~ — done 2026-09-03.** All three
+items had shipped while the list still read as open — the exact failure this
+file exists to prevent. Rewritten as history rather than deleted, since each
+carries a fact worth keeping, including that the `/ors` suffix on
+`SELF_HOSTED_ORIGIN` fails silently when omitted.
 
 ## Widening to the whole country — in flight 2026-09-03
 
@@ -857,22 +888,28 @@ Park and Chicago come back `heigit`.
 
 Rollback is still `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy.
 
-### What is left
+### What was left — all three done, kept as history
 
-1. **Cloudflare Tunnel — blocked on owning a domain.** Named tunnels require a
-   zone in the Cloudflare account; quick tunnels are ephemeral and not for
-   production. Roughly $10/year at Cloudflare Registrar if there isn't one.
-2. **Cloudflare Access with a service token** in front of the tunnel hostname.
-   ~~Without it the hostname is open routing for anyone who finds it.~~
-   **Corrected 2026-09-03 — that was wrong, and measured wrong.** See "Access:
-   the Worker is ready, the policy is not" below. The nginx gate holds: every
-   unauthenticated request to `ors.workdocks.com` is refused before it reaches
-   ORS. Access is still worth doing, but as defence in depth rather than as
-   closing a hole.
-3. **Set `SELF_HOSTED_ORIGIN`** to `https://ors.<domain>/ors` and deploy. **The
-   `/ors` suffix is mandatory and omitting it fails silently** — see
-   `worker/README.md`. Verify with the `X-Aimless-Served-By` response header,
-   which must read `self` for a New Jersey origin.
+This list read as open until 2026-09-03 while every item had in fact shipped,
+which is exactly the failure mode `HANDOFF.md` exists to prevent. Recorded as
+history rather than deleted, because each one carries a fact worth keeping.
+
+1. **Cloudflare Tunnel — done 2026-08-20.** It was blocked on owning a domain:
+   named tunnels need a zone in the account, and quick tunnels are ephemeral and
+   not for production. `workdocks.com` was bought at Cloudflare Registrar,
+   roughly $10/year, and `ors.workdocks.com` has served through the tunnel since.
+2. **Cloudflare Access with a service token — done 2026-09-03.** Enforcing via
+   service token `aimless-worker`, policy `worker-only`, action Service Auth.
+   ~~Without it the hostname is open routing for anyone who finds it.~~ **That
+   was wrong and was measured wrong** — the nginx gate always held, refusing
+   every unauthenticated request before it reached ORS. Access moved rejection
+   to Cloudflare's edge and made the credential rotatable. Defence in depth, not
+   a hole closed.
+3. **Set `SELF_HOSTED_ORIGIN` — done 2026-08-20.** **The `/ors` suffix is
+   mandatory and omitting it fails silently**, which is the part still worth
+   knowing: every self-hosted attempt 404s, the Worker falls back to HeiGIT, and
+   the app keeps working at HeiGIT's latency under HeiGIT's limit — the precise
+   thing the box exists to escape. Verify with `X-Aimless-Served-By`.
 
 Rollback is `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy. No app
 change, no review.

@@ -54,14 +54,27 @@ const MAX_BODY_BYTES = 8 * 1024;
  *         coast and eastern Texas. Miami and the Keys included; the coast needs
  *         no inset.
  *
- * Deliberately still on HeiGIT, and each for its own reason:
- *   - **Hawaii.** Measured 0/10 on `round_trip` against this graph where HeiGIT
- *     returns 4/5. The roads are present — point-to-point works — but the
- *     round-trip generator cannot place waypoints on a 44 km wide island. No
- *     retry rescues a zero, so routing it here would be strictly worse.
- *   - **Alaska.** 2/5, and its real problem is road sparsity that HeiGIT shares:
- *     a 33 km request already comes back as a six-hour loop. Worth revisiting,
- *     not worth a bespoke box tonight.
+ * - `ak`  Alaska west of -142.3, which is ~65 km inside the -141 meridian
+ *         border with Canada. Covers Anchorage and Fairbanks. The south-east
+ *         panhandle is outside on purpose: Juneau sits ~40 km from British
+ *         Columbia, and its road network is isolated anyway.
+ * - `hi`  The main Hawaiian islands. Ocean on every side, so no inset.
+ *
+ * **`ak` and `hi` were added on the second look, and the first reasoning was
+ * wrong.** Both were excluded because our graph does badly there — Honolulu
+ * 0/10 at 33 km, Anchorage 2/5 — with the note that "no retry rescues a zero".
+ * That framed it as a choice between our box and HeiGIT, and it is not one:
+ * `trySelfHosted` returns null on any non-200 and the request falls through to
+ * HeiGIT. **Adding a region can only add successes.** Whatever our graph fails,
+ * the user gets exactly today's behaviour.
+ *
+ * And the failures are concentrated in the long sizes. At 6,500 m — the
+ * 30-minute option — Anchorage, Fairbanks and Juneau are all 6/6 and Honolulu
+ * is 3/6. So these two regions gain a working 30-minute option at no cost to
+ * anything else. The only price is a doubled upstream call on the sizes that
+ * fail, which costs latency and no quota, because our box has no limit.
+ *
+ * Deliberately still on HeiGIT:
  *   - **The south-west border strip** — San Diego, Tucson, El Paso, Laredo.
  *     Inside the clipping distance of the Mexican border.
  *
@@ -75,6 +88,10 @@ const REGIONS = {
   us_southeast: { minLon: -96.0, maxLon: -79.0, minLat: 24.4, maxLat: 33.5 },
   us_texas: { minLon: -98.8, maxLon: -96.0, minLat: 28.5, maxLat: 33.5 },
   us_southwest: { minLon: -114.5, maxLon: -109.1, minLat: 32.1, maxLat: 33.5 },
+  // Added 2026-09-03. Both were previously left on HeiGIT on the grounds that
+  // our graph does badly there, which was the wrong test — see below.
+  ak: { minLon: -168.0, maxLon: -142.3, minLat: 54.0, maxLat: 71.5 },
+  hi: { minLon: -160.3, maxLon: -154.7, minLat: 18.85, maxLat: 22.3 },
 };
 
 /**
