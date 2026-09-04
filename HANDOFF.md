@@ -69,12 +69,12 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 
 | # | | What |
 |---|---|---|
-| 1 | **B** | Point an uptime monitor at the health endpoint |
+| ~~1~~ | **B** | ~~Uptime monitor~~ — **done 2026-09-03**, verified receiving checks |
 | ~~2~~ | **B** | ~~Upload and submit build 6~~ — **done 2026-09-03** |
 | ~~3~~ | | ~~Persist the swapfile~~ — **done 2026-09-03** |
-| 4 | **B** | "What's New" text for 1.0.1 |
+| ~~4~~ | **B** | ~~"What's New" text~~ — **done**, build 6 submitted |
 | 5 | **B** | Finish Cloudflare Access (Worker side already done) |
-| 6 | | Test the health check's failure path |
+| 6 | | Test the health check's failure path (notification path proven) |
 | 7 | **B** | Delete the stray `imless` Worker |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
 | 9 | | Explain the `round_trip` failure near large water |
