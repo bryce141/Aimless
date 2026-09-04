@@ -70,7 +70,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | # | | What |
 |---|---|---|
 | 1 | **B** | Point an uptime monitor at the health endpoint |
-| 2 | **B** | Upload and submit build 6 |
+| ~~2~~ | **B** | ~~Upload and submit build 6~~ — **done 2026-09-03** |
 | 3 | | Persist the swapfile |
 | 4 | **B** | "What's New" text for 1.0.1 |
 | 5 | **B** | Finish Cloudflare Access (Worker side already done) |
@@ -90,9 +90,16 @@ the health endpoint tells nobody anything** — it is the only task here that
 gates another one already built. Expect it to fire during any future graph
 rebuild, correctly: during a rebuild the country really is on HeiGIT's 200/day.
 
-**2. Upload and submit build 6** (1.0.1, the 30-minute slider). *(Bryce)*
-Archived in Xcode on 2026-09-02, never uploaded. The box is back in service, so
-the reason to wait is gone. The only task here a user would ever notice.
+**2. ~~Upload and submit build 6~~ — done 2026-09-03.** *(Bryce)* 1.0.1 build 6,
+carrying the 30-minute slider, is with Apple. It was archived on 2026-09-02 and
+sat for a day.
+
+**Test iPad before assuming this one passes.** Every review that named a device
+used an iPad, and two of four rejections were the Generate button clipped out of
+the iPhone compatibility window. The 30-minute row was verified on an iPad Air
+11-inch simulator — four ticks space evenly, "30 minutes" is the longest spoken
+label and fits at 46pt, Generate stays visible — so the known risk is covered.
+The unknown is whatever a fifth reviewer does next.
 
 **3. Persist the swapfile — it is what saved the last build.** `/swapfile` is
 live with 8 GB but has **no `/etc/fstab` entry**, and `vm.swappiness=10` is not
