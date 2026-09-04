@@ -75,7 +75,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~3~~ | | ~~Persist the swapfile~~ — **done 2026-09-03** |
 | ~~4~~ | **B** | ~~"What's New" text~~ — **done**, build 6 submitted |
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
-| 6 | | Test the health check's failure path (notification path proven) |
+| ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | 7 | **B** | Delete the stray `imless` Worker |
 | 8 | | Reclaim ~5 GB of old graphs on the box |
 | 9 | | Explain the `round_trip` failure near large water |
@@ -151,10 +151,22 @@ Cloudflare's edge, where before an attacker's request crossed the tunnel and was
 refused by nginx *on our own two cores*. The credential is also now rotatable
 and auditable, where `SELF_HOSTED_TOKEN` is static and nothing logs attempts.
 
-**6. Test the health check's failure path.** The healthy path is verified end to
-end. Nothing has confirmed the alarm actually fires, because that needs a real
-outage. Treat it as unproven until it fires on its own or is tested
-deliberately. Cheapest honest test is during task 8 or the next rebuild.
+**6. ~~Test the health alarm~~ — done 2026-09-03.** Verified against a real
+outage rather than by reasoning. Container stopped 03:13:31Z, auto-restored
+03:20:33Z by a detached timer armed in the same command, so the box could not be
+left down if the session died.
+
+| | |
+|---|---|
+| Health endpoint while down | `{"ok":false,"state":"down","upstreamStatus":502}`, HTTP 503 |
+| App during the outage | HTTP 200, `served-by: heigit` — users unaffected |
+| Recovery | `state: ok` at 43 ms, container healthy |
+
+**The outage exposed how thin the fallback is.** HeiGIT read
+`x-ratelimit-remaining: 33` of 200 during it, down from 156 that afternoon. The
+fallback is not a safety net that lasts — at ~18 requests per generate it is
+roughly two generates of grace. If the box dies on a Saturday morning, HeiGIT
+buys minutes, not hours. That is the argument for the monitor mattering.
 
 **7. Delete the stray `imless` Worker.** *(Bryce)* Whenever next in the
 Cloudflare dashboard. Not urgent — it serves `docs/index.html`, already public
