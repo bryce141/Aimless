@@ -22,11 +22,12 @@ States now runs on our own box, and the app supports **roughly 2,750 users a
 day** against roughly 5 before. See "Widening to the whole country" below for
 what it cost and where it is still weak, and "The ceilings" for the arithmetic.
 
-**What is now the top operational risk is that nothing watches the box.** The
-entire product depends on it, where a day ago two states did. If it dies, every
-request in the country silently falls back to HeiGIT's 200/day and **nothing
-tells anyone** — the failure mode is "slower, then rationed", which looks like
-the app being bad rather than the box being down.
+**The box is now watched.** The entire product depends on it, where a day ago
+two states did, and its failure mode is silent: every request in the country
+falls back to HeiGIT's 200/day, which reads as the app being bad rather than the
+box being down. An external monitor polls `/health/selfhosted` every five
+minutes as of 2026-09-03. What is still unproven is the alarm firing on a real
+outage — see task 6.
 
 Four rejections. The first two were not code defects; the third and fourth
 were:
@@ -82,13 +83,20 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | 11 | | Correct `selfhost/README.md` on build memory |
 | 12 | | Clean up the stale "What is left" list |
 
-**1. Point an uptime monitor at
-`https://aimless-routing.bdrp777.workers.dev/health/selfhosted`.** *(Bryce)*
-UptimeRobot free tier. 200 = healthy, anything else = alert, which is every
-monitor's default, so the URL is the whole configuration. **Until this exists
-the health endpoint tells nobody anything** — it is the only task here that
-gates another one already built. Expect it to fire during any future graph
-rebuild, correctly: during a rebuild the country really is on HeiGIT's 200/day.
+**1. ~~Uptime monitor~~ — done 2026-09-03.** UptimeRobot free tier, HTTP/S,
+5-minute interval, on `/health/selfhosted`. Test Notification confirmed the
+alert reaches Bryce.
+
+**It was created paused, and that is the trap worth remembering.** The URL and
+interval were correct from the start, but the monitor had never run a check, so
+the dashboard showed 100% and zero incidents — 0 of 0, which renders identically
+to a healthy history. Confirmed live only when a real `GET /health/selfhosted`
+appeared in `wrangler tail` at 22:24:10Z. **Verify a new monitor by watching a
+check arrive, not by reading its uptime percentage.**
+
+Expect it to fire during any future graph rebuild, correctly: during a rebuild
+the country really is on HeiGIT's 200/day. Pause it first if the rebuild is
+planned.
 
 **2. ~~Upload and submit build 6~~ — done 2026-09-03.** *(Bryce)* 1.0.1 build 6,
 carrying the 30-minute slider, is with Apple. It was archived on 2026-09-02 and
@@ -121,8 +129,8 @@ the same path boot takes. `findmnt --verify` passed first. Do not settle for
 having written the line — a wrong fstab entry is discovered at the worst
 possible moment otherwise.
 
-**4. "What's New" text** for the 1.0.1 version record. *(Bryce)* Drafted in the
-session of 2026-09-03; nothing written to `store/` yet.
+**4. ~~"What's New" text~~ — done 2026-09-03**, implicitly: Apple does not
+accept an update without it, and build 6 is submitted.
 
 **5. Finish Cloudflare Access.** *(Bryce — needs the dashboard)* The Worker side
 is **done and deployed**; see "Access: the Worker is ready, the policy is not"
