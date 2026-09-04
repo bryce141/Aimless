@@ -71,7 +71,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 |---|---|---|
 | 1 | **B** | Point an uptime monitor at the health endpoint |
 | ~~2~~ | **B** | ~~Upload and submit build 6~~ — **done 2026-09-03** |
-| 3 | | Persist the swapfile |
+| ~~3~~ | | ~~Persist the swapfile~~ — **done 2026-09-03** |
 | 4 | **B** | "What's New" text for 1.0.1 |
 | 5 | **B** | Finish Cloudflare Access (Worker side already done) |
 | 6 | | Test the health check's failure path |
@@ -101,12 +101,25 @@ the iPhone compatibility window. The 30-minute row was verified on an iPad Air
 label and fits at 46pt, Generate stays visible — so the known risk is covered.
 The unknown is whatever a fifth reviewer does next.
 
-**3. Persist the swapfile — it is what saved the last build.** `/swapfile` is
-live with 8 GB but has **no `/etc/fstab` entry**, and `vm.swappiness=10` is not
-in `/etc/sysctl.d/`. Both are lost on reboot. Peak container memory during the
-US build was 11,295 MiB against 11,927 MiB of RAM, so a rebuild on a rebooted
-box is a likely OOM kill. Use `nofail` on the fstab line so a missing swapfile
-can never block boot.
+**3. ~~Persist the swapfile~~ — done 2026-09-03.** It was added mid-build and
+would have vanished on the next reboot, taking with it the thing that kept the
+OOM killer away: peak container memory during the US build was 11,295 MiB
+against 11,927 MiB of RAM.
+
+- `/etc/fstab`: `/swapfile none swap sw,nofail 0 0`. **`nofail` is deliberate**
+  — a routing box that will not boot is a far worse failure than one without
+  swap, and a damaged swapfile should never be able to cause that.
+- `/etc/sysctl.d/99-aimless-swap.conf`: `vm.swappiness = 10`. Low on purpose.
+  Swap here is a floor under an OOM kill, not working memory, and the default of
+  60 would trade away page cache that ORS actively needs — the 15 GB graph is
+  served via MMAP, so the page cache *is* the performance.
+- `/etc/fstab.bak-2026-09-03` is the backup.
+
+**Proven without rebooting**, which is the part worth copying next time: `sudo
+swapoff /swapfile` then `sudo swapon --all` re-enabled it *from fstab*, which is
+the same path boot takes. `findmnt --verify` passed first. Do not settle for
+having written the line — a wrong fstab entry is discovered at the worst
+possible moment otherwise.
 
 **4. "What's New" text** for the 1.0.1 version record. *(Bryce)* Drafted in the
 session of 2026-09-03; nothing written to `store/` yet.
