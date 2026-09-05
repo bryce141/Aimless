@@ -14,9 +14,16 @@ is the Oracle memory ceiling, under "Oracle routing".
 
 ## Where this stands
 
-**Live on the App Store. 1.0.1 build 6 cleared review and shipped 2026-09-04.**
-It carries the 30-minute option. **Two clean passes in a row now**, after four
-rejections — 1.0 (5) on 2026-09-02 and 1.0.1 (6) on 2026-09-04.
+**Live on the App Store, with 1.0.2 build 7 in review as of 2026-09-04.**
+
+1.0.1 build 6 cleared review and shipped 2026-09-04, carrying the 30-minute
+option. **Two clean passes in a row**, after four rejections — 1.0 (5) on
+2026-09-02 and 1.0.1 (6) on 2026-09-04.
+
+**1.0.2 build 7 was submitted the same day**, carrying task 13: retrace shown as
+a stat and drawn as dashes on the map. Build 6 stays live and downloadable until
+7 is approved, so there is no exposure while it sits in review. Code is on branch
+`retrace-1.0.2`.
 
 Build 1.0 (5) was the fifth submission and carried both the silent-button fix
 and California on our own routing box. See "Rejected a fourth time" below for
@@ -100,7 +107,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
-| 13 | | Retrace: colour doubled segments on the map + show the stat — **built and verified 2026-09-04**, needs submitting as 1.0.2 |
+| ~~13~~ | **B** | ~~Retrace: colour on map + show the stat~~ — **submitted as 1.0.2 build 7, 2026-09-04**, awaiting review |
 | 14 | | Retrace **filter**, reversal button, curviness ranking — **deferred to 1.0.3 on purpose** |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
@@ -231,8 +238,9 @@ having written the line — a wrong fstab entry is discovered at the worst
 possible moment otherwise.
 
 **4. ~~"What's New" text~~ — done 2026-09-03**, implicitly: Apple does not
-accept an update without it, and build 6 is live. **1.0.2 will need fresh text**
-— it is per-version, not written once.
+accept an update without it, and build 6 is live. **1.0.2 needed fresh text and
+got it** on 2026-09-04 — it is per-version, not written once. Every future build
+needs its own.
 
 **5. ~~Cloudflare Access~~ — done 2026-09-03.** Enforcing on
 `ors.workdocks.com` via service token `aimless-worker`, policy `worker-only`,
