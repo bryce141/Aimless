@@ -27,6 +27,14 @@ xcuserdata/
 .env*
 !.env.example
 
+# Geometry cross-check fixtures: 1.2 MB of real ORS route geometry, regenerated
+# on demand by tools/measure-geometry.py against the box. Kept out of git on
+# purpose — ORS results are licensed CC-BY-SA 4.0, and committing route data to
+# a public repo is redistributing it as a dataset, which is the one case SPEC.md
+# flags the share-alike clause as biting. Displaying routes in the app is fine;
+# shipping them as a file is a different thing.
+tools/geometry-check/fixtures.json
+
 # Stray root wrangler config. wrangler creates one here if `deploy` is run from
 # the repo root instead of worker/, and then deploys the wrong thing — it did on
 # 2026-09-03, publishing docs/ as a Worker named "imless". worker/wrangler.toml
