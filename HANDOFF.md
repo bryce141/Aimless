@@ -3,17 +3,42 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-09-03.
+Last updated 2026-09-04.
+
+**2026-09-04 was a documentation pass, not a change to the system.** Six
+sections still read as open while the work in them had shipped — the exact
+failure this file exists to prevent, and the second time it has needed doing
+(task 12 was the first). They are rewritten as history rather than deleted,
+since each carries a fact worth keeping. Nothing was deployed. The one new fact
+is the Oracle memory ceiling, under "Oracle routing".
 
 ## Where this stands
 
-**Approved. Build 1.0 (5) cleared App Review on the fifth pass, 2026-09-02,
-after four rejections.**
+**Live on the App Store, with 1.0.2 build 7 in review as of 2026-09-04.**
 
-The fifth submission is the one that carried both the silent-button fix and
-California on our own routing box. See "Rejected a fourth time" below for what
-is in the build and "Widening coverage" in `selfhost/DEPLOY.md` for how the
-graph was built.
+1.0.1 build 6 cleared review and shipped 2026-09-04, carrying the 30-minute
+option. **Two clean passes in a row**, after four rejections — 1.0 (5) on
+2026-09-02 and 1.0.1 (6) on 2026-09-04.
+
+**1.0.2 build 7 was submitted the same day**, carrying task 13: retrace shown as
+a stat and drawn as dashes on the map. Build 6 stays live and downloadable until
+7 is approved, so there is no exposure while it sits in review. Code is on branch
+`retrace-1.0.2`.
+
+Build 1.0 (5) was the fifth submission and carried both the silent-button fix
+and California on our own routing box. See "Rejected a fourth time" below for
+what is in it and "Widening coverage" in `selfhost/DEPLOY.md` for how the graph
+was built.
+
+**What cleared review is not the same as what is good, and there is a live
+example.** The 30-minute option shipped in build 6, and the measurements taken
+the same day (see "Retrace and reversal, measured 2026-09-04") say it is the
+**worst size for retracing**, and worst of all in Marlboro — median 18.9% of the
+drive on road already covered, up to 43.3%. Nothing is broken and Apple had no
+reason to object, but the option most likely to draw a first-time user is the one
+that most often draws itself over its own line on the map. That is task 13, and
+it is now a fix to a shipped feature rather than a refinement of an unshipped
+one.
 
 **The coverage problem is solved as of 2026-09-03.** It was the top open item in
 this file for a day: outside New Jersey and California the app supported
@@ -71,7 +96,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | # | | What |
 |---|---|---|
 | ~~1~~ | **B** | ~~Uptime monitor~~ — **done 2026-09-03**, verified receiving checks |
-| ~~2~~ | **B** | ~~Upload and submit build 6~~ — **done 2026-09-03** |
+| ~~2~~ | **B** | ~~Upload and submit build 6~~ — **live on the App Store 2026-09-04** |
 | ~~3~~ | | ~~Persist the swapfile~~ — **done 2026-09-03** |
 | ~~4~~ | **B** | ~~"What's New" text~~ — **done**, build 6 submitted |
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
@@ -82,6 +107,83 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
+| ~~13~~ | **B** | ~~Retrace: colour on map + show the stat~~ — **submitted as 1.0.2 build 7, 2026-09-04**, awaiting review |
+| 14 | | Retrace **filter**, reversal button, curviness ranking — **deferred to 1.0.3 on purpose** |
+| 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
+
+**13, 14 and 15 are app changes**, so unlike everything above them they need a
+new binary and another App Review pass.
+
+**They are deliberately split across two releases, and the split is the whole
+point.** An earlier plan put all three in one build; that was wrong. The two
+changes that can produce an **empty result set** (the retrace filter) or a
+**control that looks dead** (the reverse button) are the exact shapes of
+rejections three and four. Shipping them alongside everything else means three
+new failure surfaces at once and no way to tell which one drew a rejection.
+
+- **1.0.2 = task 13 only.** Compute retrace, colour the doubled segments, show
+  the number. No filter, no new control. It **cannot** return empty and has
+  nothing new to tap, so it cannot produce a 2.1(a). It also fixes the live
+  30-minute complaint.
+- **1.0.3 = tasks 14 and 15**, with the filter threshold tuned on real retrace
+  data gathered from 1.0.2 in production rather than from a 113-loop sample.
+
+`Aimless/Services/Geometry.swift` already implements the maths for both releases
+and is cross-checked — see the pre-submission checklist.
+
+### Task 13 as built, 2026-09-04
+
+- `Geometry.retraceFraction` and `Geometry.retracedSegments` share one private
+  index pass, **so the number in the stat row and the dashes on the map can
+  never disagree.**
+- `Loop.retraceFraction` is computed at construction in
+  `RouteService.drivenRoute`, on the driven path like every other number on a
+  `Loop`. No extra request.
+- `LoopMapView` stores the retraced runs in `init` rather than a computed
+  property — the page stack re-renders on every swipe and the polyline is
+  thousands of points.
+- Dashes are `Theme.repeated` cyan, **same 5pt width as the route**. At 7pt with
+  a round cap they render as beads fatter than the line and bury the orange
+  instead of marking it. Cyan against ember also survives red-green colour
+  blindness, where cyan against the green start flag would not.
+- The explanatory note appears only above 10% (`Loop.hasNotableRetrace`).
+
+**Verified on an iPad Air 11-inch (M4) simulator and an iPhone 17e**, generated
+from Marlboro at the 30-minute size. Four stats fit the row on both, the note
+does not clip, Drive This stays visible. Release configuration also builds.
+
+Version bumped to **1.0.2, build 7**. Release builds after the bump.
+
+### Pre-submission checklist run against 1.0.2, 2026-09-04
+
+On the iPad Air 11-inch (M4) simulator, which is the device class from two
+rejections:
+
+| State | Result |
+|---|---|
+| **Tap Generate while the permission prompt is up** — rejection 4's exact moment | Tap absorbed, button becomes a "Finding you..." spinner. **Not silent, does not latch.** |
+| 15-second backstop with no fix | Falls back to "Couldn't get a location fix" with **Try Again**, and Generate re-enables |
+| **Permission denied** | Explicit callout — "needs location access... Turn it on in Settings" — plus **Open Settings**, Generate stays enabled |
+| Happy path, permission granted | 3 loops, retrace stat and dashes render |
+| Release configuration | Builds |
+
+**Reduced accuracy is the one state the tooling cannot set** — `simctl` has no
+switch for it, and the `clients.plist` trick only grants authorisation, not the
+accuracy level. It is untested here and **unchanged by 1.0.2**, which touches
+neither `LocationProvider` nor the `accuracyAuthorization` gate.
+
+**One wording weakness noticed, deliberately not fixed in 1.0.2.** When the
+15-second backstop fires because the user has not answered the permission prompt
+yet, the message blames the sky — "Somewhere with a clearer view of the sky
+usually does it" — when the real cause is an unanswered dialog. It is honest
+about the symptom and misleading about the cause. **This is shipped behaviour
+from build 5, which has cleared review twice**, so changing it now would add risk
+to a release whose whole point is having none. Candidate for 1.0.3.
+
+**The first loop it returned was 43% repeated** — from Bryce's own coordinates,
+ranked in the top three. That is the measurement showing up in the product, and
+it is the argument for the task 14 filter: 1.0.2 makes the problem *visible*, it
+does not fix it.
 
 **1. ~~Uptime monitor~~ — done 2026-09-03.** UptimeRobot free tier, HTTP/S,
 5-minute interval, on `/health/selfhosted`. Test Notification confirmed the
@@ -98,9 +200,15 @@ Expect it to fire during any future graph rebuild, correctly: during a rebuild
 the country really is on HeiGIT's 200/day. Pause it first if the rebuild is
 planned.
 
-**2. ~~Upload and submit build 6~~ — done 2026-09-03.** *(Bryce)* 1.0.1 build 6,
-carrying the 30-minute slider, is with Apple. It was archived on 2026-09-02 and
-sat for a day.
+**2. ~~Upload and submit build 6~~ — cleared review and live 2026-09-04.**
+*(Bryce)* 1.0.1 build 6, carrying the 30-minute slider. Archived 2026-09-02,
+submitted 2026-09-03, live 2026-09-04.
+
+**The iPad precaution worked.** The 30-minute row was verified on an iPad Air
+11-inch simulator before submission — four ticks spacing evenly, "30 minutes"
+fitting at 46pt as the longest spoken label, Generate staying visible — and this
+is the first update to pass without a device-specific complaint. Two clean passes
+in a row. **Keep doing it**; every review that ever named a device used an iPad.
 
 **Test iPad before assuming this one passes.** Every review that named a device
 used an iPad, and two of four rejections were the Generate button clipped out of
@@ -130,7 +238,9 @@ having written the line — a wrong fstab entry is discovered at the worst
 possible moment otherwise.
 
 **4. ~~"What's New" text~~ — done 2026-09-03**, implicitly: Apple does not
-accept an update without it, and build 6 is submitted.
+accept an update without it, and build 6 is live. **1.0.2 needed fresh text and
+got it** on 2026-09-04 — it is per-version, not written once. Every future build
+needs its own.
 
 **5. ~~Cloudflare Access~~ — done 2026-09-03.** Enforcing on
 `ors.workdocks.com` via service token `aimless-worker`, policy `worker-only`,
@@ -361,10 +471,11 @@ build: `fetch-extract.sh` runs under `set -e`, so a failed verification leaves
 the *old* 2.3 GB two-state file sitting at that path, and building from it would
 silently produce the graph you already have after hours of work.
 
-**The header carries no bounding box**, so whether Alaska and Hawaii are in the
-file is still unconfirmed — `osmium fileinfo -e` would answer it but reads all
-12 GB. The better test is to ask the finished graph directly, and that is in
-"Still to do" below.
+**The header carries no bounding box**, so at this point whether Alaska and
+Hawaii were in the file was unconfirmed — `osmium fileinfo -e` would answer it
+but reads all 12 GB. **Asking the finished graph was the cheaper test, and it
+came back yes**: graph bounds `-178.09, 174.15, 18.91, 71.36`. See "The build
+finished" below. Use that trick rather than scanning the extract.
 
 ### Build started 2026-09-03 15:41Z
 
@@ -380,8 +491,14 @@ it lands. **Put `REBUILD_GRAPHS` back to `"False"` when it finishes** — left
 armed, every future restart rebuilds from scratch, which is exactly what the
 overnight session left behind.
 
-Disk is no longer a constraint and the figure under Environment is stale: the
-volume is **145 GB with 121 GB free**, not the 48 GB it records.
+Disk on the box is no longer a constraint: the volume is **145 GB**, and it had
+121 GB free at this point in the build. An older 48 GB figure was carried
+somewhere in this file and is simply wrong — it has since been removed, so
+**this line is the reference.** Measured again 2026-09-03 after the build:
+**96 GB free, 35% used**, holding the 15 GB US graph and the 2.4 GB rollback.
+
+Note this is the *Oracle box*. The disk constraint under "Environment" is a
+different machine — the Mac — and that one is still real.
 
 ### The build finished 2026-09-03 22:21Z — 6h40m
 
@@ -500,16 +617,25 @@ seeds before concluding it is not covered.**
   generates from the degraded graph than from the good one they are allowed ten
   of. Hawaii is the exception, because no retry rescues 0/10.
 
-### Still to do
+### What was still to do here — all three closed 2026-09-03
 
-- **Alaska.** 2/5, no box, still on HeiGIT. Its real problem is road sparsity
-  that HeiGIT shares — a 33 km request already returns a six-hour loop.
-- **The `round_trip` failure near large water is unexplained.** Not snapping
-  radius; that was tested and disproved. The roads are present and
-  point-to-point routing works.
-- **Cloudflare Access** in front of the tunnel hostname is still genuinely open
-  — see the stale "What is left" list below, whose items 1 and 3 were done on
-  2026-08-20 and should be read as history.
+Kept as history rather than deleted. Each is written up in full under its
+checklist number; this list only says where it went.
+
+- **Alaska** — done, task 10. It was 2/5 with no box and reasoned to be not
+  worth adding. That reasoning was wrong: the Worker falls through to HeiGIT on
+  any non-200, so adding a region can only add successes. `ak` and `hi` are both
+  live. The road-sparsity finding stands and HeiGIT shares it — a 33 km request
+  near Anchorage still returns a six-hour loop.
+- **The `round_trip` failure near large water** — explained, task 9. It is
+  requested loop size, not location, and it is geometry rather than a bug: the
+  generator places waypoints on a ring that scales with the request, and a
+  coastal origin has roughly half a circle of usable land. Snapping radius was
+  tested and disproved; do not spend time on it again.
+- **Cloudflare Access** — done, task 5. Enforcing via service token
+  `aimless-worker`. The exposure it closed was also overstated in this file: the
+  nginx gate always held. See "What was left" below, whose items 1 and 3 were
+  done on 2026-08-20 and should be read as history.
 
 ## Rejected again 2026-08-19, and what fixed it
 
@@ -736,9 +862,12 @@ them, and it now describes this logging explicitly.
    routing for their region now runs on our own infrastructure. That became
    true at step 2 and not a moment earlier.
 
-The New Jersey rollback graph is still on the box at `~/selfhost/graphs.nj-only`
-(1.3 GB). Delete it once California has been serving for a few days without
-complaint; until then it is a two-minute restore.
+~~The New Jersey rollback graph is still on the box at
+`~/selfhost/graphs.nj-only` (1.3 GB). Delete it once California has been serving
+for a few days without complaint.~~ **Done, and verified gone 2026-09-03** —
+`~/selfhost` now holds only `graphs` (15 GB, the US graph in service) and
+`graphs.nj-ca` (2.4 GB, the current rollback, task 8). California served without
+complaint, so the plan above was followed through.
 
 ### App Store Connect field limits, both learned the hard way
 
@@ -751,21 +880,114 @@ are typing:
 
 Write to fit rather than trimming under time pressure. `wc -m` before pasting.
 
-## Shipping after approval
+## Pre-submission checklist
 
-Resolved: the outcome was **approved**, so **the next binary is 1.0.1 with a
-fresh build number**. Apple requires the build's version string to match the App
-Store Connect record, which is why this could not be decided in advance.
+Written 2026-09-04, before tasks 13-15 are built, and derived from **what
+actually caused the four rejections** rather than from general good practice.
 
-Pushing a new build is safe. A live app stays live while a new version is in
-review; users keep downloading the current one, and the new version only
-replaces it on approval. There is no window where the app disappears.
+### The pattern in the four rejections
+
+**Not one of them was routing or geometry.** Every single one was UI state, or
+the server, or store metadata:
+
+| # | Cause | Layer |
+|---|---|---|
+| 1 | Missing docs and screen recording | Process |
+| 2 | HeiGIT rate limit surfaced as an error; Support URL had no contact address | Server + store metadata |
+| 3 | Generate clipped off an iPad window; disabled button gave no feedback; `.locating` deadlock | **UI state** |
+| 4 | Alert silently discarded and then latched; HeiGIT cut the quota to 200/day | **UI state** + server |
+
+That is good news for 13-15, whose *maths* lives in the layer that has never
+once been rejected. It is bad news for their *controls*, which live in the layer
+that has been rejected three times.
+
+### The two ways tasks 13-15 could earn a fifth rejection
+
+1. **A filter that returns nothing.** Retrace filtering is a new way for the app
+   to show zero loops, and "nothing happened when we tapped on generate" is the
+   verbatim sentence from rejections three *and* four. **Rule: neither filter
+   may ever produce an empty result.** On empty, fall back to the best available
+   loops with the stat displayed. A slightly retraced loop shown honestly beats
+   an empty screen every time.
+2. **A button that appears dead.** The reverse control fires a network request on
+   tap. If it is slow, silent or latches, that is rejection 3 cause 2 and
+   rejection 4 cause 1 happening again. **It must show a spinner within one
+   frame of the tap, and it must never disable itself without saying why** —
+   the same lesson the `BlockNote?` optional taught, which is that a fresh value
+   per tap cannot latch where a `Bool` can.
+
+### What can actually be tested, given there is no test target
+
+`Aimless.xcodeproj` is hand-written with one target and **no test target**, so
+XCTest would mean editing the fragile project file. Not required — the new work
+is pure functions.
+
+- **Geometry, outside Xcode — built and passing as of 2026-09-04.**
+  `tools/geometry-check/run.sh` compiles `Aimless/Services/Geometry.swift` with
+  `swiftc` against `main.swift` and asserts. Runs in seconds, **touches no Xcode
+  project file.**
+- **Cross-checked against the Python, and they agree.** 56 real ORS routes,
+  49,582 points, fixtures in `tools/geometry-check/fixtures.json`:
+
+  | | |
+  |---|---|
+  | Max Δ retrace | **0.00005 pp** (tolerance 0.01) |
+  | Max Δ curviness | **0.00005 deg/mi** (tolerance 0.05) |
+  | Synthetic out-and-back | 99.2% retrace (expect ~100) |
+  | Synthetic straight line | 0.000 deg/mi, 0.0% retrace |
+
+  Two independent implementations in different languages agreeing to five
+  decimal places on real routes is a far stronger check than hand-written
+  fixtures. **Regenerate fixtures with `tools/measure-geometry.py` on the box**
+  if the pipeline ever changes.
+- **Degenerate inputs are asserted, not assumed** — empty, single-point and
+  all-identical polylines must return 0 rather than trap. The retrace filter is
+  a new path to an empty result, so the thing feeding it must not crash first.
+- **The empty-result path specifically.** Force it: set the retrace threshold to
+  0% and confirm the app still shows loops rather than an empty state. This is
+  the single most important test in the list, because it is the rejection path.
+- **`-autoGenerate -duration N`** already exists for screenshots and drives the
+  app past the first screen without a tap.
+
+### Before every submission, without exception
+
+- **Test on an iPad.** Every review that named a device used one — iPad Air
+  11-inch (M3) twice, iPad Air (5th gen) once, never an iPhone. The app is
+  `TARGETED_DEVICE_FAMILY = 1`, so it runs in a compatibility window shorter
+  than any iPhone screen, and that is what clipped Generate twice.
+- **Check the four location states** on that iPad: permission undecided, denied,
+  reduced accuracy, and a failed refresh after a good fix. Rejection 3 was
+  hiding in the fourth.
+- **Tap Generate immediately on first launch**, while the system permission
+  prompt is still up. That is the exact moment rejection 4 lived in, and it is
+  what a reviewer does.
+- **Build the Release configuration**, not just Debug. `-autoGenerate` is
+  `#if DEBUG`, so Release takes a different path through `generate()`.
+- **Leave 2+ minutes between generates** when capturing anything, or the upstream
+  limit trips and the screenshot catches a rate-limit message.
+
+## Shipping updates — done once, and the pattern held
+
+~~The next binary is 1.0.1 with a fresh build number.~~ **Shipped 2026-09-04.**
+Apple requires the build's version string to match the App Store Connect record,
+which is why the version could not be chosen before the approval landed. **The
+next one is 1.0.2**, and tasks 13-15 are what it should carry.
+
+**Pushing a new build is safe, and this has now been done rather than reasoned
+about.** A live app stays live while a new version is in review; users keep
+downloading the current one, and the new version only replaces it on approval.
+There is no window where the app disappears.
 
 **Nothing on the ceiling problem needs a new binary.** Coverage is
 `SELF_HOSTED_REGIONS` in the Worker and the graph on the Oracle box — both
-server-side, both deployable without Apple. Save 1.0.1 for something that
-genuinely lives in the app, and the first candidate is whatever the drive turns
-up.
+server-side, both deployable without Apple. That division still holds and is
+worth protecting: **spend a binary only on what genuinely lives in the app.**
+Tasks 13-15 qualify, because filtering, map rendering and a new control cannot
+be done from the server.
+
+~~The first candidate is whatever the drive turns up.~~ There is no drive; that
+was declined 2026-09-02. The candidates now come from measurement instead — see
+"Retrace and reversal, measured 2026-09-04".
 
 ## Who this is for
 
@@ -849,12 +1071,17 @@ and Cupertino `self`, Chicago `heigit`. Outside the two states the app supported
 single-digit generates per day across every install on earth — less than one App
 Review pass consumes. That is the number the widening was done against.
 
-## Oracle routing: deployed, not yet switched on
+## Oracle routing: live since 2026-08-20, carrying the whole US
 
-Built 2026-08-19. **The box exists, serves correct routes, and is not yet
-carrying any traffic** — the Worker still sends everything to HeiGIT because
-`SELF_HOSTED_ORIGIN` is unset. That is the safe order: prove the backend, then
-flip one secret.
+Built 2026-08-19. **The box now serves every covered US region** — see "Widening
+to the whole country" above for the current graph and "The Worker is widened and
+live" for the six region boxes.
+
+~~The box exists, serves correct routes, and is not yet carrying any traffic.~~
+True only between 2026-08-19 and 2026-08-20, while `SELF_HOSTED_ORIGIN` was
+unset. Kept because **the order it describes is the one to repeat**: prove the
+backend first, then flip one secret. Rollback has been a single secret delete
+ever since.
 
 | | |
 |---|---|
@@ -865,9 +1092,33 @@ flip one secret.
 | Public IP | 129.213.20.151 |
 | SSH | `ssh -i ~/.ssh/aimless_oracle ubuntu@129.213.20.151` |
 
-Graph built in 1742 s, 1.3 GB on disk. Verified against HeiGIT on eight seeds:
-within ~1% on duration and 0.6 points on highway share. Full numbers and the
-build runbook are in `selfhost/README.md` and `selfhost/DEPLOY.md`.
+**12 GB is the whole always-free allowance, confirmed 2026-09-03.** This box
+consumes all of it, and three things follow that are easy to plan around
+wrongly:
+
+- **There is no resize.** The 8 GB heap ceiling is permanent, so the 171 MiB of
+  headroom the US build finished with is a permanent fact and **the swapfile
+  stays load-bearing forever.**
+- **There is no second free instance**, so a hot spare has to be paid for or not
+  exist. Today it does not exist.
+- **`core.threads` and `lm.threads` stay at 1.** Two cores would genuinely help
+  `PrepareCore` (2,289 s) and the ~3.5 hours of landmark sets, but parallel
+  phases hold more in memory at once and there is no headroom to spend.
+
+**Building a graph and serving one need different resources, and that is the way
+out.** Building needs heap and cores; serving needs page cache, which is why a
+15 GB graph serves comfortably on a 12 GB box and got *faster* than the
+two-state one. So any future graph larger than the US should be **built on a
+rented box for an afternoon and `rsync`ed here** — a few euros once, and it
+sidesteps the ceiling entirely. Whether the result still *serves* well on 12 GB
+is a separate question and a measurable one; the US graph suggests the hot
+working set is far smaller than the file.
+
+The **original** NJ-only graph built in 1742 s at 1.3 GB on disk, and was
+verified against HeiGIT on eight seeds: within ~1% on duration and 0.6 points on
+highway share. Those figures describe 2026-08-19, not what is serving now — the
+current graph is the 15 GB US one. Full numbers and the build runbook are in
+`selfhost/README.md` and `selfhost/DEPLOY.md`.
 
 **What it bought is throughput, not latency.** Twelve concurrent requests finish
 in 0.73 s, so a generate lands near 1.1 s and sustained throughput is roughly
@@ -918,11 +1169,14 @@ history rather than deleted, because each one carries a fact worth keeping.
 Rollback is `wrangler secret delete SELF_HOSTED_ORIGIN` and a deploy. No app
 change, no review.
 
-### Access: the Worker is ready, the policy is not
+### Access: both halves are live — the measurement is why it was worth doing
 
-**The exposure was overstated in this file, and the measurement is worth
-keeping.** Tested 2026-09-03 against `ors.workdocks.com` with no credentials at
-all:
+**Enforcing as of 2026-09-03** (task 5). This section is kept for the
+measurement, not as an open item.
+
+**The exposure was overstated in this file, and that is the part worth keeping.**
+Tested 2026-09-03 against `ors.workdocks.com` with no credentials at all, *before*
+Access was switched on:
 
 | Request | Result |
 |---|---|
@@ -934,18 +1188,20 @@ all:
 So it is a shared secret, not an open door. What Access actually buys is
 narrower than "closing a hole" and still real:
 
-- **Rejection moves to Cloudflare's edge.** Today an attacker's request travels
-  the tunnel and is refused by nginx *on the box*, so it costs our CPU. That is
-  a denial-of-service surface on two Ampere cores.
-- **The credential becomes rotatable and auditable.** `SELF_HOSTED_TOKEN` is
+- **Rejection moved to Cloudflare's edge.** Before Access, an attacker's request
+  travelled the tunnel and was refused by nginx *on the box*, so it cost our CPU
+  — a denial-of-service surface on two Ampere cores. It is now refused before it
+  crosses the tunnel at all.
+- **The credential became rotatable and auditable.** `SELF_HOSTED_TOKEN` is
   static, has never been rotated, and nothing logs attempts against it.
 
-**The Worker half is deployed** (version `7c8656f6`). `trySelfHosted` and the
-health probe both send `CF-Access-Client-Id` / `CF-Access-Client-Secret` when
-both secrets exist, and send nothing when they do not — so the deployed code is
-a no-op today and becomes correct the moment the secrets are set, with no code
-change at the risky moment. Verified after deploy: Denver and Marlboro still
-`self`, health still `ok`.
+**The Worker half was deployed first, on purpose** (version `7c8656f6`).
+`trySelfHosted` and the health probe both send `CF-Access-Client-Id` /
+`CF-Access-Client-Secret` when both secrets exist, and send nothing when they do
+not — so the deployed code was a no-op until the secrets were set, and there was
+**no code change at the risky moment.** Copy that ordering for anything else that
+gates live traffic. Verified after deploy: Denver and Marlboro still `self`,
+health still `ok`.
 
 The health probe sends the same credentials as real traffic **on purpose**. A
 probe that authenticates differently would report the box healthy while every
@@ -957,16 +1213,28 @@ have.
 **Oracle reclaims idle always-free compute** — under ~20% utilisation across 7
 days. A routing box for an app with no users is exactly that profile. The Worker
 degrades to HeiGIT on a dead socket, so the failure mode is "slower", not
-"broken", but nothing currently notices or alerts.
+"broken". ~~Nothing currently notices or alerts.~~ **Something does now** —
+UptimeRobot on `/health/selfhosted`, proven against a real outage, see tasks 1
+and 6.
 
-`tools/oracle-retry.sh` rebuilds the instance if it is ever reclaimed; it
-rotates availability domains until free ARM capacity appears. Capacity in
-Ashburn was refused on AD-1 and granted on AD-2 on the first attempt.
+**A reclaim costs much more than it used to.** `tools/oracle-retry.sh` rebuilds
+the instance and rotates availability domains until free ARM capacity appears
+(Ashburn refused AD-1 and granted AD-2 on the first attempt), but the instance
+was the cheap part. Rebuilding the graph on it is **6h40m**, and with 12 GB
+being the entire allowance there is no larger box to do it on. Whatever replaces
+this box should get the graph by `rsync` from a backup, not by rebuilding.
 
-**Coverage is still the limit.** The graph holds NJ, PA, NY and DE, and the
-Worker only routes *New Jersey* origins locally — deliberately, since a route
-generated near a graph edge gets silently clipped. Everyone else still goes to
-HeiGIT and still shares its ceiling. This scales one region, not the app.
+~~**Coverage is still the limit.** The graph holds NJ, PA, NY and DE, and the
+Worker only routes New Jersey origins locally.~~ **Superseded 2026-09-03.** The
+graph is the whole US and the Worker routes six region boxes plus `ak` and `hi`.
+The reasoning underneath it still holds and is why the insets exist: a route
+generated near a graph edge gets silently clipped. See "The Worker is widened and
+live" for the boxes and their inset distances.
+
+**The limit is now the Cloudflare Worker**, at 100k requests/day, and the
+geography inverted — inside the boxes the app supports thousands of users;
+outside them, and in the Great Lakes fallback path, it is still tens of generates
+a day. See "The ceilings".
 
 **Open question, not yet answered:** whether "v2" also means a paid Pro tier.
 Unrelated work — StoreKit, subscriptions, a real App Review surface — and should
@@ -998,6 +1266,105 @@ Not a false-advertising problem: the listing makes no geographic claim, and
 "back-road loops from anywhere" is accurate about where it will *try*. If a
 caveat is ever added, it should be about road density, not geography. Bryce
 wants to revisit this.
+
+## Retrace and reversal, measured 2026-09-04
+
+113 loops, three origins, all four picker sizes, run through the **app's exact
+pipeline** — `round_trip`, downsample to the 8 handoff waypoints, reroute, and
+measure *that*. Direct against local ORS on the box, so no quota was spent.
+Script and raw JSON: `tools/measure-geometry.py`, `/tmp/loopdata.json` on the box.
+
+### Retrace: the app promises something it never checks
+
+The App Store description promises loops that "come back **without retracing
+themselves**", and SPEC.md's founding problem is the retraced return leg.
+**Nothing in the app computes it.** Highway share gets a filter; retrace does not.
+
+Percentage of driven length spent on road covered on a separate pass:
+
+| size | median | mean | >10% | >20% |
+|---|---|---|---|---|
+| **30m** | **7.8%** | 11.2% | **47%** | **17%** |
+| 60m | 4.1% | 7.1% | 33% | 7% |
+| 90m | 5.1% | 4.9% | 7% | 0% |
+| 120m | 3.5% | 4.5% | 4% | 0% |
+
+**The 30-minute option is far worse in Marlboro than anywhere else**, which is
+why it was noticed there and matters more than the global median suggests:
+
+| origin, 30m | median | max |
+|---|---|---|
+| **Marlboro NJ** | **18.9%** | **43.3%** |
+| Denver CO | 5.0% | 17.2% |
+| Austin TX | 6.0% | 12.1% |
+
+This confirms SPEC.md's "Known floors" prediction (11% retrace at the small
+sizes against 2% at 16 km) and **localises it**: it is not a general defect, it
+is Bryce's own road network at the smallest size, which is exactly the
+combination he generates from.
+
+Retrace is a **25 m grid approximation** — points snapped to cells, a cell
+entered in two non-contiguous runs counts as retraced, both passes counted.
+Treat ±2 points as noise.
+
+### Reversal: reversing the waypoints is not the same drive
+
+**The obvious implementation is wrong and this was measured, not reasoned.**
+Reversing the handoff waypoint list produces a **systematically longer and
+different** route:
+
+| | |
+|---|---|
+| Median duration change | **+8.1%** |
+| Median distance change | +10.2% |
+| Reversed came back longer | **101 of 113** |
+| Duration within 5% of forward | **36%** |
+| Worst case | Marlboro 60m seed 7: 71.8 min → **124.5 min** |
+
+Clean rate by size: 30m **20%**, 60m 43%, 90m 41%, 120m 42%.
+
+**The mechanism shows in the retrace numbers** — reversed routes carry roughly
+double the retrace of forward ones at every size (30m 7.8% → 15.8%, 120m 3.5% →
+8.9%). Routing the same points in the opposite order does not mirror the path;
+it finds a worse one. Only 1 of 113 crossed the 15% highway threshold, so
+highway share is *not* the thing reversal breaks — duration is.
+
+**Consequence:** shipping a bare `waypoints.reversed()` would hand the user a
+drive ~8% longer than the number on screen, against a description that
+explicitly promises "the duration you see is the duration you drive." A
+verification request per reversal is not optional.
+
+### What follows, and the review risk in it
+
+Both filters below are **new ways for the app to show the user nothing**, and
+"nothing happened when we tapped generate" is the exact sentence that caused
+rejections three and four. **Neither filter may ever return an empty result** —
+on empty, fall back to the best available loops with the stat shown, rather than
+an empty state. See the pre-submission checklist.
+
+| # | | What |
+|---|---|---|
+| 13 | | Retrace: compute it, colour doubled segments on the map, filter at 10% for 60/90/120 and 20% at 30 — **not started** |
+| 14 | | Reversal as a verified "+N min" button, one request on tap — **not started** |
+| 15 | | Curviness score and seed scaling — **proposed, unmeasured**, see brainstorm |
+
+**13.** The map colouring is the part that answers the original complaint: on a
+retraced stretch the route draws over itself and reads as one straight line with
+no way to tell it is two passes. Thresholds are set where they are affordable —
+10% rejects only 4-33% of loops at the three long sizes, but 47% globally at 30m
+and more than half in Marlboro, which is why 30m gets 20% and leans on the
+colouring instead.
+
+**14.** Verify lazily on tap, not upfront: one request, ~50 ms on the box, and
+users who never press it pay nothing. When it diverges, **show the cost rather
+than hiding the button** — "Reverse (+12 min)" is honest and leaves the choice
+with the driver. Hiding it would mean the control vanishes on ~64% of loops,
+which is worse UI than a truthful label.
+
+**15.** Curviness is the one that would change what the product is — total
+heading change per mile, computed on `Loop.coordinates`, no network. Note it
+**cannot distinguish the two directions**: total turning is identical whichever
+way round you go, so it is not a substitute for offering reversal.
 
 ## Store assets
 
@@ -1246,14 +1613,23 @@ client reads 429 as rate limiting worth surfacing and 404/5xx as one dead seed
 to swallow. Flattening them would recreate exactly the ambiguity `RouteService`
 was built to remove.
 
-## Still open on shipping
+## What was open on shipping — kept as history
 
-- **ORS quota is shared across every install.** 40 requests/minute, and one
-  generate is ~18 (up to ~36 with a retry round). That works out to roughly
-  **two generates per minute across all users combined**, which is the real
-  ceiling — not the daily quota. Fine at one user; it starts hurting somewhere
-  around a hundred active ones, and it hurts on weekend mornings specifically,
-  which is the whole use case.
+**Every item here is closed. Read it for the reasoning, not for the state.**
+Current capacity is in "The ceilings, in plain terms".
+
+- ~~**ORS quota is shared across every install.** 40 requests/minute, roughly
+  two generates per minute across all users combined, which is the real ceiling
+  — not the daily quota.~~ **Superseded 2026-09-03.** That was the binding limit
+  only while everyone was on HeiGIT. Inside the US, requests go to our own box,
+  which measures **~24 requests/second, roughly 80 generates per minute** and has
+  no quota at all. The binding limit is now the Cloudflare Worker's 100k
+  requests/day.
+
+  **The prediction in it was right, and worth keeping for that.** It said the
+  ceiling "starts hurting somewhere around a hundred active ones, and it hurts on
+  weekend mornings specifically, which is the whole use case." That is exactly
+  the failure that made the widening urgent.
 
 - ~~The ORS free tier is not licensed for production use.~~ **Retracted
   2026-08-08.** HeiGIT's terms place no restriction on commercial or production
@@ -1261,33 +1637,41 @@ was built to remove.
   planning for weeks — it is why self-hosting kept getting framed as a
   compliance requirement. It is an optimisation, nothing more.
 
-The quota ceiling is real but not urgent, and **self-hosting is now measured
-rather than theorised** — see `selfhost/README.md`. Summary of what it costs:
+**Self-hosting stopped being theoretical here** — see `selfhost/README.md`. What
+it cost at the time, on the original four-state graph:
 
-| | |
-|---|---|
-| Extract (NJ + PA + NY + DE) | 0.98 GB |
-| Graph build | 955 s, **1.96 GB peak heap** |
-| Serving with MMAP | **1.12 GB** |
-| Latency | 55-140 ms, against 430-970 ms hosted |
-| 12-request burst | 0.28 s, no rate limit |
+| | NJ + PA + NY + DE | Whole US, for comparison |
+|---|---|---|
+| Extract | 0.98 GB | 11.28 GB |
+| Graph build | 955 s, **1.96 GB peak heap** | 400 min, **8,021 MiB peak heap** |
+| Serving with MMAP | **1.12 GB** | 15 GB graph, restart in 20 s |
+| Latency | 55-140 ms, against 430-970 ms hosted | 49-64 ms |
+| 12-request burst | 0.28 s, no rate limit | 0.47-0.52 s, no rate limit |
 
-Two findings worth keeping:
+Two findings, and **the first one is wrong at scale:**
 
-- **Build memory barely grows with the extract.** Six times the map cost 15%
-  more heap, not six times. `graphs_data_access: MMAP` keeps the graph off-heap
-  during the build as well as during serving, so disk and build time scale and
-  RAM does not. Linear extrapolation predicted ~10 GB and was wrong by 5x. This
-  is what puts it inside a free tier.
+- ~~**Build memory barely grows with the extract.** Six times the map cost 15%
+  more heap, not six times. Linear extrapolation predicted ~10 GB and was wrong
+  by 5x. This is what puts it inside a free tier.~~ **Corrected 2026-09-03, task
+  11.** True from 0.16 GB to 0.98 GB and false at country scale: the 15% rule
+  predicted 5.0-5.7 GB for the US and the real figure was **8,021 MiB of an
+  8,192 MiB ceiling**. It was wrong by ~2.5 GB in the direction that kills a
+  build. `graphs_data_access: MMAP` does keep the graph off-heap, and that part
+  still holds — it is why serving is cheap. **Budget for heap, disk and time
+  separately, and do not extrapolate any of them from a small extract.**
 - **The neighbouring states are not optional.** A New Jersey-only graph ends at
   the state line: Jersey City and Lambertville failed outright, and the
   north-west corner silently returned a loop **19% short with no error**, which
-  nothing at runtime could have detected.
+  nothing at runtime could have detected. This is the finding the region insets
+  exist to honour, and it generalises — it is why `us_north` is capped 65 km
+  inside the Canadian border rather than at it.
 
-`worker/src/index.js` already routes New Jersey traffic to a self-hosted
-instance and falls back to HeiGIT on any non-200, timeout or dead socket. It is
-inert until `SELF_HOSTED_ORIGIN` is set, so it deploys safely before a server
-exists.
+~~`worker/src/index.js` routes New Jersey traffic to a self-hosted instance. It
+is inert until `SELF_HOSTED_ORIGIN` is set, so it deploys safely before a server
+exists.~~ **Superseded** — six region boxes plus `ak` and `hi`, live since
+2026-09-03. The fallback behaviour described is unchanged and load-bearing: any
+non-200, timeout or dead socket falls through to HeiGIT, which is why adding a
+region can only add successes.
 
 ## Prototype files kept for reference
 

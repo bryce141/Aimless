@@ -51,7 +51,17 @@ struct LoopResultsView: View {
 struct LoopMapView: View {
     let loop: Loop
 
+    /// Stored, not computed. The polyline runs to thousands of points and this
+    /// view re-renders on every swipe of the page stack, so recomputing the
+    /// retraced runs in a computed property would redo that work each frame.
+    private let retraced: [[CLLocationCoordinate2D]]
+
     @State private var camera: MapCameraPosition = .automatic
+
+    init(loop: Loop) {
+        self.loop = loop
+        self.retraced = Geometry.retracedSegments(loop.coordinates)
+    }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -59,6 +69,20 @@ struct LoopMapView: View {
                 MapPolyline(coordinates: loop.coordinates)
                     .stroke(Theme.ember, style: StrokeStyle(
                         lineWidth: 5, lineCap: .round, lineJoin: .round))
+
+                // Drawn over the base line, wider and in a second colour, so a
+                // stretch you cover twice stops reading as one straight line.
+                // See HANDOFF.md, "Retrace and reversal, measured 2026-09-04".
+                ForEach(Array(retraced.enumerated()), id: \.offset) { _, run in
+                    // Same width as the route, not wider: the dashes should mark
+                    // the road, not bury it. At 7pt with a round cap they render
+                    // as beads fatter than the line underneath.
+                    MapPolyline(coordinates: run)
+                        .stroke(Theme.repeated, style: StrokeStyle(
+                            lineWidth: 5, lineCap: .round, lineJoin: .round,
+                            dash: [1, 7]))
+                }
+
                 if let start = loop.start {
                     Marker("Start", systemImage: "flag.fill", coordinate: start)
                         .tint(Theme.start)
@@ -68,6 +92,7 @@ struct LoopMapView: View {
             .onAppear { camera = .rect(Self.boundingRect(for: loop.coordinates)) }
 
             stats
+            if loop.hasNotableRetrace { retraceNote }
             attribution
             driveButton
         }
@@ -83,10 +108,35 @@ struct LoopMapView: View {
             stat(String(format: "%.0f", loop.distanceMiles), "miles")
             divider
             stat(String(format: "%.0f%%", loop.roadStats.highwayPct * 100), "highway")
+            divider
+            stat(String(format: "%.0f%%", loop.retracePct), "repeated")
         }
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
         .cozyCard(radius: 20)
+    }
+
+    /// Only shown above the 10% threshold. Below that the doubled stretch is a
+    /// corner or a short connector, and a callout would be noise.
+    ///
+    /// Deliberately explanatory rather than a warning — a repeated stretch is
+    /// often unavoidable geometry at the 30-minute size, not a defect. See
+    /// SPEC.md, "Known floors".
+    private var retraceNote: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.repeated)
+            Text("The dashed stretch is road you cover in both directions.")
+                .font(Theme.display(13, .medium))
+                .foregroundStyle(Theme.inkFaint)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cozyCard(radius: 16)
     }
 
     /// Required, not decorative, and the wording is not ours to choose. HeiGIT's

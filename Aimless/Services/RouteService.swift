@@ -179,14 +179,19 @@ struct RouteService {
             throw ORSHTTPError(status: 200, body: Data())
         }
 
+        let driven = Self.coordinates(from: feature.geometry)
+
         return Loop(
             seed: candidate.seed,
-            coordinates: Self.coordinates(from: feature.geometry),
+            coordinates: driven,
             waypoints: waypoints,
             distanceMeters: summary.distance,
             durationSeconds: summary.duration,
             roadStats: Self.roadStats(from: feature.properties.extras),
-            plannedDurationSeconds: candidate.durationSeconds)
+            plannedDurationSeconds: candidate.durationSeconds,
+            // On the driven path, not the candidate — same rule as every other
+            // number on a Loop. Local arithmetic, no extra request.
+            retraceFraction: Geometry.retraceFraction(driven))
     }
 
     /// Verifies candidates concurrently, dropping any that fail.

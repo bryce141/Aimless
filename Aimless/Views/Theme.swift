@@ -25,6 +25,16 @@ enum Theme {
     /// Matches the start marker in the app icon and the map flag.
     static let start = Color(red: 0.19, green: 0.82, blue: 0.35)
 
+    /// Road covered in both directions, drawn dashed over the route.
+    ///
+    /// Cool cyan against the warm `ember` route on purpose. The two colours that
+    /// must never be confused here are the route and the repeated stretch, and
+    /// **orange against cyan stays distinguishable under red-green colour
+    /// blindness** where orange against the green `start` would not. The dash
+    /// pattern carries the same information again, so the meaning survives even
+    /// if the hue does not.
+    static let repeated = Color(red: 0.42, green: 0.82, blue: 0.89)
+
     static let surface = Color.white.opacity(0.07)
     static let hairline = Color.white.opacity(0.13)
 
