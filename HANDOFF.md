@@ -1,44 +1,58 @@
-# Handoff — v1 approved by App Review, runs on a phone, still never driven
+# Handoff — shipping on the App Store, served by our own routing box, never driven
 
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-09-04.
-
-**2026-09-04 was a documentation pass, not a change to the system.** Six
-sections still read as open while the work in them had shipped — the exact
-failure this file exists to prevent, and the second time it has needed doing
-(task 12 was the first). They are rewritten as history rather than deleted,
-since each carries a fact worth keeping. Nothing was deployed. The one new fact
-is the Oracle memory ceiling, under "Oracle routing".
+Last updated 2026-09-09.
 
 ## Where this stands
 
-**Live on the App Store, with 1.0.2 build 7 in review as of 2026-09-04.**
+**1.0.2 build 7 is live on the App Store as of 2026-09-09.** It carries the
+retrace stat and the dashed map overlay — task 13.
 
-1.0.1 build 6 cleared review and shipped 2026-09-04, carrying the 30-minute
-option. **Two clean passes in a row**, after four rejections — 1.0 (5) on
-2026-09-02 and 1.0.1 (6) on 2026-09-04.
+**Three clean review passes in a row**, after four rejections:
 
-**1.0.2 build 7 was submitted the same day**, carrying task 13: retrace shown as
-a stat and drawn as dashes on the map. Build 6 stays live and downloadable until
-7 is approved, so there is no exposure while it sits in review. Code is on branch
-`retrace-1.0.2`.
+| Version | Cleared | Carried |
+|---|---|---|
+| 1.0 (5) | 2026-09-02 | Silent-button fix, California on our own box |
+| 1.0.1 (6) | 2026-09-04 | The 30-minute option |
+| **1.0.2 (7)** | **2026-09-09** | **Retrace stat + dashed map overlay** |
+
+**The variable that changed is iPad testing.** All four rejections predate it;
+all three passes had it. Every review that ever named a device used an iPad, and
+the app is `TARGETED_DEVICE_FAMILY = 1`, so it runs there in a compatibility
+window shorter than any iPhone screen. **Keep doing it before every submission.**
+
+### If you are picking this up cold
+
+- **The app works and is shipping.** Nothing is on fire.
+- **Routing is ours.** The whole US runs on the Oracle box; capacity is ~2,750
+  users/day against ~5 before 2026-09-03. See "The ceilings".
+- **Next work is task 14** — the retrace filter, the reverse button, curviness.
+  The maths for all three is already written, cross-checked and merged in
+  `Aimless/Services/Geometry.swift`, so that build is mostly UI.
+- **Task 8 is now actionable** — the US graph has had six days of real use.
+- The open checklist below is the authoritative list. Numbers are stable.
 
 Build 1.0 (5) was the fifth submission and carried both the silent-button fix
 and California on our own routing box. See "Rejected a fourth time" below for
 what is in it and "Widening coverage" in `selfhost/DEPLOY.md` for how the graph
 was built.
 
-**What cleared review is not the same as what is good, and there is a live
-example.** The 30-minute option shipped in build 6, and the measurements taken
-the same day (see "Retrace and reversal, measured 2026-09-04") say it is the
-**worst size for retracing**, and worst of all in Marlboro — median 18.9% of the
-drive on road already covered, up to 43.3%. Nothing is broken and Apple had no
-reason to object, but the option most likely to draw a first-time user is the one
-that most often draws itself over its own line on the map. That is task 13, and
-it is now a fix to a shipped feature rather than a refinement of an unshipped
-one.
+**What cleared review is not the same as what is good, and that gap is the
+current work.** The 30-minute option shipped in build 6, and measurement the
+same day (see "Retrace and reversal, measured 2026-09-04") showed it is the
+**worst size for retracing** and worst of all in Marlboro — median 18.9% of the
+drive on road already covered, up to 43.3%. Apple had no reason to object, but
+the option most likely to draw a first-time user is the one that most often draws
+itself over its own line on the map.
+
+**1.0.2 made that visible. It did not fix it.** A 43%-repeated loop still ranks
+in the top three; it is now labelled rather than silent. **Removing those loops
+is task 14**, deliberately held back to a separate release because a filter is a
+new way to show the user nothing — the shape of rejections three and four. Tune
+its threshold on real retrace data now that the stat is shipping, not on the
+113-loop sample.
 
 **The coverage problem is solved as of 2026-09-03.** It was the top open item in
 this file for a day: outside New Jersey and California the app supported
@@ -102,13 +116,13 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
-| 8 | | Reclaim 2.4 GB (`graphs.nj-ca`) — **deliberate wait**, not blocked |
+| 8 | | Reclaim 2.4 GB (`graphs.nj-ca`) — **wait is over**, six days of clean US serving |
 | ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
-| ~~13~~ | **B** | ~~Retrace: colour on map + show the stat~~ — **submitted as 1.0.2 build 7, 2026-09-04**, awaiting review |
-| 14 | | Retrace **filter**, reversal button, curviness ranking — **deferred to 1.0.3 on purpose** |
+| ~~13~~ | | ~~Retrace: colour on map + show the stat~~ — **live 2026-09-09** as 1.0.2 build 7 |
+| 14 | | Retrace **filter**, reversal button, curviness ranking — **next up**, maths already merged |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
 **13, 14 and 15 are app changes**, so unlike everything above them they need a
@@ -121,12 +135,17 @@ changes that can produce an **empty result set** (the retrace filter) or a
 rejections three and four. Shipping them alongside everything else means three
 new failure surfaces at once and no way to tell which one drew a rejection.
 
-- **1.0.2 = task 13 only.** Compute retrace, colour the doubled segments, show
-  the number. No filter, no new control. It **cannot** return empty and has
-  nothing new to tap, so it cannot produce a 2.1(a). It also fixes the live
-  30-minute complaint.
+- **1.0.2 = task 13 only. Shipped 2026-09-09, cleared review first time.**
+  Compute retrace, colour the doubled segments, show the number. No filter, no
+  new control. It **cannot** return empty and has nothing new to tap, so it
+  cannot produce a 2.1(a).
 - **1.0.3 = tasks 14 and 15**, with the filter threshold tuned on real retrace
   data gathered from 1.0.2 in production rather than from a 113-loop sample.
+
+**The split worked and is worth repeating.** The low-risk half is live and the
+risky half now ships against a known-good baseline, with real data to set its
+threshold. Do this again whenever a release mixes safe changes with ones that can
+show the user nothing.
 
 `Aimless/Services/Geometry.swift` already implements the maths for both releases
 and is cross-checked — see the pre-submission checklist.
@@ -292,15 +311,25 @@ run from the repo root instead of `worker/` finds no config, so wrangler writes
 one and deploys whatever it infers — here `docs/` as a Worker named after the
 directory. Always deploy from `worker/`.
 
-**8. Reclaim the last 2.4 GB — a deliberate wait, not a blocked task.**
+**8. Reclaim the last 2.4 GB — the wait is over; now purely optional.**
 `graphs.with-elevation` was deleted on 2026-09-03 (2.5 GB, the Aug 30 NJ+CA
 graph with elevation on, superseded by `graphs.nj-ca`). What remains is
 `graphs.nj-ca` itself, which is **the rollback**: a two-minute restore to the
 two-state configuration that has been serving since 2026-08-30, if anything
 about the US graph turns out to be wrong.
 
-Disk is at 96 GB free, so it costs nothing to keep. Delete it once the US graph
-has a few days of real use behind it — not before.
+~~Delete it once the US graph has a few days of real use behind it.~~ **That
+condition is met as of 2026-09-09** — six days of the whole US on the new graph
+with no routing complaint, no rollback, and the app shipping two releases on top
+of it. Verified the same day: `graphs` 15 GB serving, `graphs.nj-ca` 2.4 GB idle,
+ORS `{"status":"ready"}`, box up 21 days, load 0.00.
+
+**Still not urgent, and that is the honest read.** Disk is 95 GB free at 35%
+used, so the 2.4 GB buys nothing back that anyone needs. Delete it when you want
+the tidiness, keep it if you want the two-minute rollback. `rm -rf
+~/selfhost/graphs.nj-ca` is the whole operation, and **the rollback it protects
+is only reachable while the NJ+CA graph exists** — rebuilding one costs 40
+minutes, against 6h40m for the US graph.
 
 **9. ~~Explain the `round_trip` failure near large water~~ — done 2026-09-03.**
 **It is requested loop size, not location**, and it is geometry rather than a
@@ -968,10 +997,15 @@ is pure functions.
 
 ## Shipping updates — done once, and the pattern held
 
-~~The next binary is 1.0.1 with a fresh build number.~~ **Shipped 2026-09-04.**
-Apple requires the build's version string to match the App Store Connect record,
-which is why the version could not be chosen before the approval landed. **The
-next one is 1.0.2**, and tasks 13-15 are what it should carry.
+~~The next binary is 1.0.1 with a fresh build number.~~ **Shipped 2026-09-04, and
+1.0.2 build 7 shipped 2026-09-09.** Apple requires the build's version string to
+match the App Store Connect record, which is why the version could not be chosen
+before the first approval landed. **The next one is 1.0.3**, carrying task 14.
+
+**Bump both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`** in
+`Aimless.xcodeproj/project.pbxproj` — two occurrences each, Debug and Release.
+Apple rejects an upload that reuses a build number. Each release also needs its
+own "What's New" text; it is per-version, not written once.
 
 **Pushing a new build is safe, and this has now been done rather than reasoned
 about.** A live app stays live while a new version is in review; users keep
@@ -1342,20 +1376,28 @@ rejections three and four. **Neither filter may ever return an empty result** �
 on empty, fall back to the best available loops with the stat shown, rather than
 an empty state. See the pre-submission checklist.
 
-| # | | What |
-|---|---|---|
-| 13 | | Retrace: compute it, colour doubled segments on the map, filter at 10% for 60/90/120 and 20% at 30 — **not started** |
-| 14 | | Reversal as a verified "+N min" button, one request on tap — **not started** |
-| 15 | | Curviness score and seed scaling — **proposed, unmeasured**, see brainstorm |
+**Status lives in the open checklist at the top of this file, not here** — a
+second copy of a task list is how this file drifted twice already. What follows
+is the reasoning behind tasks 13-15, which does not change as they ship.
 
-**13.** The map colouring is the part that answers the original complaint: on a
+**13 — shipped in 1.0.2, 2026-09-09.** The map colouring is the part that
+answers the original complaint: on a
 retraced stretch the route draws over itself and reads as one straight line with
-no way to tell it is two passes. Thresholds are set where they are affordable —
-10% rejects only 4-33% of loops at the three long sizes, but 47% globally at 30m
-and more than half in Marlboro, which is why 30m gets 20% and leans on the
-colouring instead.
+no way to tell it is two passes. **That is all 1.0.2 does** — it labels the
+problem, it does not remove it.
 
-**14.** Verify lazily on tap, not upfront: one request, ~50 ms on the box, and
+**14, the filter half.** Thresholds should land where they are affordable: 10%
+rejects only 4-33% of loops at the three long sizes, but 47% globally at 30m and
+more than half in Marlboro, which is why 30m wants 20% and should lean on the
+colouring instead. **Re-derive these from live data before building it** — the
+numbers above come from a 113-loop sample on three origins, and the retrace stat
+has been shipping since 2026-09-09.
+
+**The hard rule, worth repeating because it is the rejection path:** the filter
+may never return an empty result. On empty, fall back to the best available
+loops with the stat shown.
+
+**14, the reversal half.** Verify lazily on tap, not upfront: one request, ~50 ms on the box, and
 users who never press it pay nothing. When it diverges, **show the cost rather
 than hiding the button** — "Reverse (+12 min)" is honest and leaves the choice
 with the driver. Hiding it would mean the control vanishes on ~64% of loops,
