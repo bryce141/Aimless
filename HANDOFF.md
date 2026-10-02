@@ -51,8 +51,9 @@ It now is. Whoever fixed it did not write it down; that is how it hid for two we
 - **The app works and is shipping.** Nothing is on fire.
 - **Routing is ours.** The whole US runs on the Oracle box; capacity is ~2,750
   users/day against ~5 before 2026-09-03. See "The ceilings".
-- **1.0.3 build 8 is built and simulator-tested (2026-10-01)**, not yet
-  submitted. See "1.0.3 as built". **Submit by mid-November**: Apple's
+- **1.0.3 build 8 was submitted to App Review on 2026-10-01**, carrying the
+  retrace re-rank and Neighborhood mode. Await the result; if it is rejected,
+  read "Pre-submission checklist" first. See "1.0.3 as built". **Submit by mid-November**: Apple's
   holiday slowdown and shutdown land in late December, and 30-minute loops are
   what people will use for Christmas-lights drives.
 - **Task 8 is now actionable** — the US graph has had six days of real use.
@@ -306,7 +307,7 @@ early tap. Accepted because `LocationProvider.swift` is byte-identical to 1.0.2
 (empty `git diff 1b6305d`), which passed this check on the iPad simulator
 2026-09-04 and then cleared review. Only the `.fixFailed` text changed.
 
-**Still to do (Bryce):** archive, upload, What's New text, submit.
+**Submitted 2026-10-01** with new 6.5" screenshots and holiday What's New text.
 
 Simulator note: `clients.plist` keys contain a colon, so PlistBuddy cannot edit
 them; use Python `plistlib`. This device had been left at denied (`Authorization
