@@ -3,7 +3,7 @@
 Read `SPEC.md` first for the routing design. `store/listing.md` holds everything
 App Store Connect asks for. This file records state, decisions, and what's open.
 
-Last updated 2026-09-09.
+Last updated 2026-10-01.
 
 ## Where this stands
 
@@ -22,6 +22,22 @@ retrace stat and the dashed map overlay — task 13.
 all three passes had it. Every review that ever named a device used an iPad, and
 the app is `TARGETED_DEVICE_FAMILY = 1`, so it runs there in a compatibility
 window shorter than any iPhone screen. **Keep doing it before every submission.**
+
+### Outage 2026-09-13 to 2026-09-14 — 47 hours, found 2026-10-01
+
+**The box was down for about 47 hours, and nothing in this file recorded it.**
+A clean `reboot` at 2026-09-13 00:40Z (kernel 1018 → 1020, started from Bryce's
+home IP) stopped `aimless-ors`, and Docker's default restart policy `no` left it
+stopped while nginx kept forwarding to nothing. For those two days every request
+fell back to HeiGIT's 200/day.
+
+Fixed 2026-09-14 23:29Z by `restart: unless-stopped` in
+`~/selfhost/docker-compose.yml` (backup alongside as `.bak-20260914`). Verified
+2026-10-01: the running container reports `restart=unless-stopped`, started
+2026-09-14 23:30Z, health `ok`. **Not yet re-proven by an actual reboot.**
+
+**Lesson:** a reboot of the box is an outage unless the restart policy is set.
+It now is. Whoever fixed it did not write it down; that is how it hid for two weeks.
 
 ### If you are picking this up cold
 
@@ -116,7 +132,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
-| 8 | | Reclaim 2.4 GB (`graphs.nj-ca`) — **wait is over**, six days of clean US serving |
+| 8 | **B** | Reclaim 2.4 GB (`graphs.nj-ca`) — **cleared to delete 2026-10-01**: verified idle, ORS mounts only `graphs`. Bryce runs `rm -rf ~/selfhost/graphs.nj-ca` (Claude's session was not permitted to) |
 | ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
