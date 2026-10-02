@@ -344,6 +344,11 @@ geometrically is. Floor the picker at 60 minutes.
 size before the neighborhood-lap effect takes over. Don't add it before the
 first real drive.
 
+**Superseded in practice.** 30 minutes shipped in 1.0.1 (6,500 m, for test
+drives), and 1.0.3 added a ~45-minute **Neighborhood** mode that places Google's
+stops on residential streets. The geometry above still holds; both are
+deliberate uses of it. See HANDOFF.md, "1.0.3 as built".
+
 ## Known ceilings
 
 These are structural, not bugs. They bound what v1 can be.

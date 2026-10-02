@@ -62,9 +62,12 @@ failures for the identical cost.
 
 ## Design decisions worth explaining
 
-**No 30-minute option.** Not a limitation — geometry. Landing at 30 minutes from
-a fixed origin needs a ~4km request, and those loops spend 87% of their length
-within 2km of the start. It's a lap around the block. The picker floors at 60.
+**Short loops are a lap around the block, and that shaped the picker.** Landing
+at 30 minutes needs a small request, and those loops stay close to the start.
+The picker floored at 60 until 1.0.1 (2026-09) added 30 minutes for test drives,
+tuned at 6,500 m. 1.0.3 (2026-10) added **Neighborhood**, a ~45-minute loop
+whose Google stops sit inside residential streets, for holiday-lights drives.
+See `DurationOption.swift` and HANDOFF.md.
 
 **No Apple Maps fallback.** Apple exposes no multi-stop routing API — MapKit
 Directions handles source and destination only, and the URL scheme has no

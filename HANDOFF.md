@@ -1163,7 +1163,7 @@ is pure functions.
 ~~The next binary is 1.0.1 with a fresh build number.~~ **Shipped 2026-09-04, and
 1.0.2 build 7 shipped 2026-09-09.** Apple requires the build's version string to
 match the App Store Connect record, which is why the version could not be chosen
-before the first approval landed. **The next one is 1.0.3**, carrying task 14.
+before the first approval landed. **1.0.3 was submitted 2026-10-01**; the next is 1.0.4 (reverse button, curviness).
 
 **Bump both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`** in
 `Aimless.xcodeproj/project.pbxproj` — two occurrences each, Debug and Release.

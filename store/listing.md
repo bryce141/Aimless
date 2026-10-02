@@ -48,7 +48,7 @@ No destination, no backtracking. Pick how long you want to be out and get a loop
 ```
 Aimless makes driving loops that start and end exactly where you are.
 
-Pick how long you want to be out — 60, 90, or 120 minutes — and Aimless hands
+Pick how long you want to be out — 30 minutes to 2 hours, or a Neighborhood loop — and Aimless hands
 you three routes that wander out and come back without retracing themselves.
 Tap one and it opens in Google Maps, ready to drive.
 
@@ -184,7 +184,7 @@ TO TEST:
 1. Allow location access when prompted. The app requires precise location — it
    deliberately refuses to generate under reduced accuracy rather than build a
    route starting kilometers from the user.
-2. Choose a duration (60, 90, or 120 minutes) and tap Generate.
+2. Choose a duration (Neighborhood, 30, 60, 90 or 120 minutes) and tap Generate.
 3. Three loops appear as swipeable maps with distance, drive time, and highway
    percentage.
 4. "Drive This" opens the route in Google Maps or in Safari if Google Maps is
