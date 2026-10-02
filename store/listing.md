@@ -220,9 +220,19 @@ and resampling softens the text in the stat row.
 
 | File | Shows |
 |---|---|
-| `01-pick-how-long.png` | The Generate screen — map, duration slider, button |
-| `02-one-hour-loop.png` | A 58 min / 28 mi / 0% highway loop |
-| `03-two-hour-loop.png` | A 124 min / 63 mi / 0% highway loop |
+**6.5-inch set recaptured 2026-10-01 for 1.0.3**, from Marlboro:
+
+| File | Shows |
+|---|---|
+| `01-neighborhood-pick.png` | Generate screen with **Neighborhood** selected on the five-stop slider |
+| `02-neighborhood-loop.png` | Neighborhood: 50 min / 13 mi / 0% highway / 4% repeated |
+| `03-thirty-minute-loop.png` | 35 min / 9 mi / 0% highway / 2% repeated |
+| `04-one-hour-loop.png` | 57 min / 29 mi / 0% highway / 3% repeated |
+
+**The 6.9-inch set below is still the August 1.0 set** (no Neighborhood, no
+repeated stat). App Store Connect only asked for 6.5" on this record.
+
+Previous 6.5-inch set (August, replaced):
 
 Captured with a pinned status bar (9:41, full bars, charged) via
 `simctl status_bar override`, and with `-autoGenerate -duration N` to drive the
