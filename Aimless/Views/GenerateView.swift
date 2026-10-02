@@ -184,7 +184,7 @@ struct GenerateView: View {
 
     // MARK: - Duration
 
-    /// A slider over three discrete stops rather than a segmented control.
+    /// A slider over five discrete stops rather than a segmented control.
     /// `model.duration` stays the single source of truth; this projects it onto
     /// an index so there's no second piece of state to drift.
     private var durationIndex: Binding<Double> {
@@ -205,8 +205,13 @@ struct GenerateView: View {
                 .font(Theme.display(15, .medium))
                 .foregroundStyle(Theme.inkSoft)
 
+            // One line, always. "Neighborhood" is wider than the card in the
+            // iPad compatibility window, and a second line here is the extra
+            // height that once pushed Generate off screen (rejection 3).
             Text(model.duration.spokenLabel)
                 .font(Theme.display(46, .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(Theme.ink)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.25), value: model.duration)

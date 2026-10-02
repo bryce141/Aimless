@@ -289,6 +289,7 @@ struct RouteService {
     /// waytype: 1 = state road, 2 = road, 3 = street. 2 and 3 are what we want.
     private static let backroadWaytypes: Set<Int> = [2, 3]
     private static let stateRoadWaytype = 1
+    private static let streetWaytype = 3
     /// waycategory is a bitmask; bit 0 (value 1) is motorway.
     private static let highwayBit = 1
 
@@ -308,11 +309,13 @@ struct RouteService {
             .filter { backroadWaytypes.contains($0.key) }
             .values.reduce(0, +)
         let stateRoad = waytype[stateRoadWaytype] ?? 0
+        let street = waytype[streetWaytype] ?? 0
 
         return RoadStats(
             highwayPct: highway / total,
             backroadPct: backroad / total,
-            stateRoadPct: stateRoad / total)
+            stateRoadPct: stateRoad / total,
+            streetPct: street / total)
     }
 
     private static func distancesByValue(

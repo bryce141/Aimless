@@ -16,9 +16,20 @@ import Foundation
 /// ORS overshoots the requested length by 1.4x to 3.2x depending on size. Two
 /// wrong constants multiplied together is how "30 minutes" became 62 minutes.
 ///
+/// **`.neighborhood` is the deliberate exception, added 2026-10-01.** It is
+/// not a shorter duration; it is a different drive. For Christmas lights,
+/// staying inside the neighbourhood is the point, so the small radius above is
+/// the feature. It also ranks for residential streets (`prefersStreets`).
+/// Measured over 12 suburbs: 50% of the drive on residential streets against
+/// ~31% at the 30-minute size. ORS cannot be told to stay on residential
+/// streets, so this is a ranking among what it generates, never a guarantee.
+///
 /// The table only has to land in the right ballpark — `LoopScorer` does the real
 /// work by filtering on the duration ORS returns.
 enum DurationOption: Int, CaseIterable, Identifiable {
+    /// First, so it sits at the left end of the slider. The raw value is the
+    /// target at ORS speeds; at a lights-looking crawl it takes ~2x as long.
+    case neighborhood = 15
     case thirty = 30
     case sixty = 60
     case ninety = 90
@@ -28,10 +39,15 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     var minutes: Double { Double(rawValue) }
     var label: String { self == .twoHours ? "2 hr" : "\(rawValue) min" }
 
+    /// Rank loops by share of residential street rather than by closeness to
+    /// the target time.
+    var prefersStreets: Bool { self == .neighborhood }
+
     /// How a person would say it. "90 min" is a spec; "1½ hours" is a plan for
     /// the afternoon. Used for the big readout above the slider.
     var spokenLabel: String {
         switch self {
+        case .neighborhood: return "Neighborhood"
         case .thirty:   return "30 minutes"
         case .sixty:    return "1 hour"
         case .ninety:   return "1½ hours"
@@ -42,6 +58,7 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     /// Short form for the slider's tick marks, where space is tight.
     var tickLabel: String {
         switch self {
+        case .neighborhood: return "Near"
         case .thirty:   return "30m"
         case .sixty:    return "1 hr"
         case .ninety:   return "1½"
@@ -71,6 +88,7 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     /// Do not raise past 100km — ORS rejects it with HTTP 400. Verified.
     var requestMeters: Int {
         switch self {
+        case .neighborhood: return 4_000   // -> median 15 min driven, 2026-10-01
         case .thirty:   return 6_500   // -> median 27.4 min driven, 50% in band
         case .sixty:    return 33_000
         case .ninety:   return 70_000

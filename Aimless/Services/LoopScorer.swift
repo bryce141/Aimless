@@ -24,7 +24,8 @@ enum LoopScorer {
     static func rank(
         _ loops: [Loop],
         targetMinutes: Double,
-        tolerance: Double = tolerance
+        tolerance: Double = tolerance,
+        prefersStreets: Bool = false
     ) -> [Loop] {
         let low = targetMinutes * (1 - tolerance)
         let high = targetMinutes * (1 + tolerance)
@@ -47,6 +48,12 @@ enum LoopScorer {
                 if a.hasNotableRetrace, a.retraceFraction != b.retraceFraction {
                     return a.retraceFraction < b.retraceFraction
                 }
+                // Neighborhood: most residential first. Duration still has to
+                // land in band (the filter above); within it, street share
+                // matters more than being nearest the target.
+                if prefersStreets, a.roadStats.streetPct != b.roadStats.streetPct {
+                    return a.roadStats.streetPct > b.roadStats.streetPct
+                }
                 // Most candidates come back at exactly 0% highway, so in
                 // practice duration closeness is what does the ordering.
                 if a.roadStats.highwayPct != b.roadStats.highwayPct {
@@ -60,9 +67,11 @@ enum LoopScorer {
     static func top(
         _ loops: [Loop],
         targetMinutes: Double,
-        tolerance: Double = tolerance
+        tolerance: Double = tolerance,
+        prefersStreets: Bool = false
     ) -> [Loop] {
-        Array(rank(loops, targetMinutes: targetMinutes, tolerance: tolerance)
+        Array(rank(loops, targetMinutes: targetMinutes, tolerance: tolerance,
+                   prefersStreets: prefersStreets)
             .prefix(desiredCount))
     }
 
@@ -83,7 +92,8 @@ enum LoopScorer {
     /// 15% final one.
     static func worthVerifying(
         _ candidates: [RoundTrip],
-        targetMinutes: Double
+        targetMinutes: Double,
+        prefersStreets: Bool = false
     ) -> [RoundTrip] {
         let low = targetMinutes * (1 - candidateTolerance)
         let high = targetMinutes * (1 + candidateTolerance)
@@ -92,8 +102,14 @@ enum LoopScorer {
             .filter { $0.roadStats.highwayPct <= candidateMaxHighwayShare }
             .filter { (low...high).contains($0.estimatedDrivenMinutes) }
             .sorted {
-                abs($0.estimatedDrivenMinutes - targetMinutes)
-              < abs($1.estimatedDrivenMinutes - targetMinutes)
+                // Neighborhood spends its verification budget on the most
+                // residential candidates: 50% street in the shown loops
+                // against 45% when it picks by time and only ranks by street.
+                if prefersStreets, $0.roadStats.streetPct != $1.roadStats.streetPct {
+                    return $0.roadStats.streetPct > $1.roadStats.streetPct
+                }
+                return abs($0.estimatedDrivenMinutes - targetMinutes)
+                     < abs($1.estimatedDrivenMinutes - targetMinutes)
             }
             .prefix(maxToVerify)
             .map { $0 }

@@ -10,6 +10,9 @@ struct RoadStats: Equatable {
     let highwayPct: Double
     let backroadPct: Double
     let stateRoadPct: Double
+    /// ORS waytype "street": OSM residential, living_street and service.
+    /// Verified in ORS's WayTypeParser, 2026-10-01. Ranks Neighborhood loops.
+    let streetPct: Double
 
-    static let zero = RoadStats(highwayPct: 0, backroadPct: 0, stateRoadPct: 0)
+    static let zero = RoadStats(highwayPct: 0, backroadPct: 0, stateRoadPct: 0, streetPct: 0)
 }

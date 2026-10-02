@@ -35,6 +35,7 @@ final class LoopViewModel {
 
         let meters = duration.requestMeters
         let target = duration.minutes
+        let streets = duration.prefersStreets
         var throttled = false
 
         do {
@@ -46,7 +47,8 @@ final class LoopViewModel {
             var verified = await verify(candidates,
                                         targetMinutes: target,
                                         throttled: &throttled)
-            var ranked = LoopScorer.top(verified, targetMinutes: target)
+            var ranked = LoopScorer.top(verified, targetMinutes: target,
+                                        prefersStreets: streets)
 
             // A retry round costs about a second. Ask for *fresh* seeds — the
             // same seed at the same origin and size returns an identical result
@@ -75,7 +77,8 @@ final class LoopViewModel {
                 ranked = LoopScorer.top(
                     verified,
                     targetMinutes: target,
-                    tolerance: LoopScorer.widenedTolerance)
+                    tolerance: LoopScorer.widenedTolerance,
+                    prefersStreets: streets)
             }
 
             if ranked.isEmpty {
@@ -99,7 +102,8 @@ final class LoopViewModel {
         throttled: inout Bool
     ) async -> [Loop] {
         let batch = await service.drivenRoutes(for:
-            LoopScorer.worthVerifying(candidates, targetMinutes: targetMinutes))
+            LoopScorer.worthVerifying(candidates, targetMinutes: targetMinutes,
+                                      prefersStreets: duration.prefersStreets))
         throttled = throttled || batch.rateLimited
         return batch.results
     }

@@ -146,7 +146,8 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
 | ~~13~~ | | ~~Retrace: colour on map + show the stat~~ — **live 2026-09-09** as 1.0.2 build 7 |
-| 14 | | Retrace half **built 2026-10-01 as 1.0.3 build 8**, awaiting device test + submit. Reversal button and curviness moved to **1.0.4** |
+| 14 | | Retrace half **built 2026-10-01 in 1.0.3 build 8**, awaiting device test + submit. Reversal button and curviness moved to **1.0.4** |
+| 16 | | **Neighborhood mode — built 2026-10-01 in 1.0.3 build 8**, same release by Bryce's choice |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
 **13, 14 and 15 are app changes**, so unlike everything above them they need a
@@ -175,6 +176,48 @@ show the user nothing.
 and is cross-checked — see the pre-submission checklist.
 
 ### 1.0.3 as built, 2026-10-01
+
+**1.0.3 carries two changes, by Bryce's choice:** the retrace re-rank below,
+and **Neighborhood mode** (task 16, the Christmas-lights feature). I advised
+two releases so a rejection would point at one change; Bryce chose one
+submission. The mitigation is that **neither change can return fewer loops**:
+both only reorder.
+
+#### Neighborhood mode
+
+A fifth slider stop at the left end: big label **"Neighborhood"**, tick
+**"Near"**. `DurationOption.neighborhood` (raw 15): 4,000 m request, median 15
+min driven at ORS speeds (≈25-30 min at a lights crawl). `prefersStreets` makes
+`worthVerifying` spend its 6 verifications on the most residential candidates
+and makes `rank` order by `RoadStats.streetPct` after the retrace bucket.
+
+**"Street" is ORS waytype 3 = OSM `residential`, `living_street`, `service`**,
+read from `WayTypeParser.java` in the ORS repo on 2026-10-01, not assumed.
+
+**ORS cannot be told to prefer residential streets** for driving-car, so this
+is selection, not routing. Measured over 12 origins (`tools/simulate-neighborhood.py`):
+
+| Policy at 4,000 m | Residential share of shown loops |
+|---|---|
+| 30-minute size today, for comparison | ~31% |
+| Smaller size, today's rules | 42% |
+| + rank by street | 45% |
+| **+ pick and rank by street (shipped)** | **50%**, no empties, retrace unchanged |
+
+Suburbs do best (Overland Park, Levittown 74%); downtown origins stay low
+(Denver 6%), which is honest. Expect ~15% retrace in places like Marlboro: the
+street you leave home on is usually the one you return on.
+
+**The spoken label is `lineLimit(1)` with `minimumScaleFactor(0.6)`.**
+"Neighborhood" is wider than the card in the iPad window, and a wrapped second
+line is the extra height that clipped Generate in rejection 3.
+
+**Verified on the iPad Air 11-inch (M4) simulator:** home screen with
+Neighborhood selected (one line, five ticks, Generate fully visible); generate
+from Marlboro returned 3 loops, first 14 min / 4 mi / 0% highway through the
+residential grid by Veterans Park. Debug and Release build.
+
+#### Retrace re-rank
 
 **Scope cut on purpose.** The plan put the retrace filter, the reverse button,
 curviness and seed scaling in one release. With Apple's December shutdown as a
