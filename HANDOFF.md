@@ -300,9 +300,13 @@ state could not be triggered in the simulator** (it holds its last fix even afte
 | Permission denied | Callout + Open Settings, Generate visible |
 | Debug and Release builds | Both succeed |
 
-**Still to do before submitting (Bryce):** the permission-prompt tap on a
-real device or a fresh simulator (the one check that needs a hand on the
-screen), archive, What's New text, submit.
+**Permission-prompt tap: not re-run on 1.0.3, by Bryce's choice (2026-10-01).**
+He confirmed the app works on his phone but did not do the fresh-install
+early tap. Accepted because `LocationProvider.swift` is byte-identical to 1.0.2
+(empty `git diff 1b6305d`), which passed this check on the iPad simulator
+2026-09-04 and then cleared review. Only the `.fixFailed` text changed.
+
+**Still to do (Bryce):** archive, upload, What's New text, submit.
 
 Simulator note: `clients.plist` keys contain a colon, so PlistBuddy cannot edit
 them; use Python `plistlib`. This device had been left at denied (`Authorization
