@@ -158,11 +158,19 @@ struct RouteService {
     /// point-to-point route through them — the same thing Google does with the
     /// URL we hand off. The returned duration, distance and road stats describe
     /// that rerouted path.
-    func drivenRoute(for candidate: RoundTrip) async throws -> Loop {
+    func drivenRoute(
+        for candidate: RoundTrip,
+        residentialStops: Bool = false
+    ) async throws -> Loop {
         guard let origin = candidate.coordinates.first else {
             throw ORSHTTPError(status: 0, body: Data())
         }
-        let waypoints = Handoff.waypoints(along: candidate.coordinates)
+        // Google navigates between these stops by its own fastest roads, so
+        // where they sit is the only lever on what the user actually drives.
+        let waypoints = residentialStops
+            ? Handoff.residentialWaypoints(along: candidate.coordinates,
+                                           streetRuns: candidate.streetRuns)
+            : Handoff.waypoints(along: candidate.coordinates)
         guard !waypoints.isEmpty else {
             throw ORSHTTPError(status: 0, body: Data())
         }
@@ -195,13 +203,19 @@ struct RouteService {
     }
 
     /// Verifies candidates concurrently, dropping any that fail.
-    func drivenRoutes(for candidates: [RoundTrip]) async -> RouteBatch<Loop> {
+    func drivenRoutes(
+        for candidates: [RoundTrip],
+        residentialStops: Bool = false
+    ) async -> RouteBatch<Loop> {
         let results = await withTaskGroup(
             of: Result<Loop, Error>.self
         ) { group -> [Result<Loop, Error>] in
             for candidate in candidates {
                 group.addTask {
-                    do { return .success(try await drivenRoute(for: candidate)) }
+                    do {
+                        return .success(try await drivenRoute(
+                            for: candidate, residentialStops: residentialStops))
+                    }
                     catch { return .failure(error) }
                 }
             }
@@ -249,7 +263,9 @@ struct RouteService {
             coordinates: coords,
             distanceMeters: summary.distance,
             durationSeconds: summary.duration,
-            roadStats: Self.roadStats(from: feature.properties.extras))
+            roadStats: Self.roadStats(from: feature.properties.extras),
+            streetRuns: Self.streetRuns(from: feature.properties.extras,
+                                        pointCount: coords.count))
     }
 
     private func post<Body: Encodable>(body: Body) async throws -> ORSResponse {
@@ -292,6 +308,20 @@ struct RouteService {
     private static let streetWaytype = 3
     /// waycategory is a bitmask; bit 0 (value 1) is motorway.
     private static let highwayBit = 1
+
+    /// Index ranges of the geometry that run on residential street. Feeds
+    /// `Handoff.residentialWaypoints`; empty when ORS sent no `values`.
+    static func streetRuns(
+        from extras: ORSResponse.Extras?,
+        pointCount: Int
+    ) -> [ClosedRange<Int>] {
+        guard pointCount > 0 else { return [] }
+        return (extras?.waytype?.values ?? []).compactMap { run in
+            guard run.count >= 3, Int(run[2]) == streetWaytype else { return nil }
+            let lo = max(0, Int(run[0])), hi = min(pointCount - 1, Int(run[1]))
+            return lo <= hi ? lo...hi : nil
+        }
+    }
 
     static func roadStats(from extras: ORSResponse.Extras?) -> RoadStats {
         let waytype = distancesByValue(extras?.waytype)
@@ -377,6 +407,9 @@ struct ORSResponse: Decodable {
     }
     struct ExtraBlock: Decodable {
         let summary: [ExtraSummary]
+        /// `[firstIndex, lastIndex, value]` runs over the geometry's points.
+        /// Optional so a response without it still decodes.
+        let values: [[Double]]?
     }
     struct ExtraSummary: Decodable {
         let value: Double

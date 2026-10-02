@@ -51,6 +51,15 @@ enum LoopScorer {
                 // Neighborhood: most residential first. Duration still has to
                 // land in band (the filter above); within it, street share
                 // matters more than being nearest the target.
+                // On the widened retry band, a long loop can out-score a
+                // well-timed one on street share alone (61 min shown for 45 on
+                // the first simulator run), so loops in the normal band lead.
+                if prefersStreets {
+                    let strict = targetMinutes * (1 - Self.tolerance)...targetMinutes * (1 + Self.tolerance)
+                    let aIn = strict.contains(a.durationMinutes)
+                    let bIn = strict.contains(b.durationMinutes)
+                    if aIn != bIn { return aIn }
+                }
                 if prefersStreets, a.roadStats.streetPct != b.roadStats.streetPct {
                     return a.roadStats.streetPct > b.roadStats.streetPct
                 }

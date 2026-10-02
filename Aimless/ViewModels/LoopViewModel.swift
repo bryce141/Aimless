@@ -101,9 +101,10 @@ final class LoopViewModel {
         targetMinutes: Double,
         throttled: inout Bool
     ) async -> [Loop] {
-        let batch = await service.drivenRoutes(for:
-            LoopScorer.worthVerifying(candidates, targetMinutes: targetMinutes,
-                                      prefersStreets: duration.prefersStreets))
+        let batch = await service.drivenRoutes(
+            for: LoopScorer.worthVerifying(candidates, targetMinutes: targetMinutes,
+                                           prefersStreets: duration.prefersStreets),
+            residentialStops: duration.prefersStreets)
         throttled = throttled || batch.rateLimited
         return batch.results
     }

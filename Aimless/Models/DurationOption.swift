@@ -16,20 +16,27 @@ import Foundation
 /// ORS overshoots the requested length by 1.4x to 3.2x depending on size. Two
 /// wrong constants multiplied together is how "30 minutes" became 62 minutes.
 ///
-/// **`.neighborhood` is the deliberate exception, added 2026-10-01.** It is
-/// not a shorter duration; it is a different drive. For Christmas lights,
-/// staying inside the neighbourhood is the point, so the small radius above is
-/// the feature. It also ranks for residential streets (`prefersStreets`).
-/// Measured over 12 suburbs: 50% of the drive on residential streets against
-/// ~31% at the 30-minute size. ORS cannot be told to stay on residential
-/// streets, so this is a ranking among what it generates, never a guarantee.
+/// **`.neighborhood` is a different drive, not a different length** (added
+/// 2026-10-01, for Christmas-lights drives): a ~45-minute tour through *other*
+/// neighbourhoods. A 15-minute version was tried first and rejected by Bryce
+/// on the phone: it circled his own street. Its handoff stops are placed on
+/// residential street (`Handoff.residentialWaypoints`) and loops are picked and
+/// ranked by residential share (`prefersStreets`).
+///
+/// Measured over 12 origins through the full pipeline: 29% of the drive on
+/// residential street against ~12% for an ordinary loop this size, median 41
+/// min, no empty results. **That ceiling is structural:** ORS builds loops from
+/// fastest roads and Google drives fastest roads between stops, so main roads
+/// connect the neighbourhoods. A server-side "prefer residential" custom model
+/// needs a full graph rebuild (`enable_custom_models`) and would still lose
+/// to Google between stops; not worth it. See HANDOFF.md.
 ///
 /// The table only has to land in the right ballpark — `LoopScorer` does the real
 /// work by filtering on the duration ORS returns.
 enum DurationOption: Int, CaseIterable, Identifiable {
-    /// First, so it sits at the left end of the slider. The raw value is the
-    /// target at ORS speeds; at a lights-looking crawl it takes ~2x as long.
-    case neighborhood = 15
+    /// First, so it sits at the left end of the slider: a mode, not a length.
+    /// The raw value is the target in minutes at ORS speeds.
+    case neighborhood = 45
     case thirty = 30
     case sixty = 60
     case ninety = 90
@@ -88,7 +95,7 @@ enum DurationOption: Int, CaseIterable, Identifiable {
     /// Do not raise past 100km — ORS rejects it with HTTP 400. Verified.
     var requestMeters: Int {
         switch self {
-        case .neighborhood: return 4_000   // -> median 15 min driven, 2026-10-01
+        case .neighborhood: return 15_000  // -> median 41 min, residential stops, 2026-10-01
         case .thirty:   return 6_500   // -> median 27.4 min driven, 50% in band
         case .sixty:    return 33_000
         case .ninety:   return 70_000

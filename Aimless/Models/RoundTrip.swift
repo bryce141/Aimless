@@ -17,6 +17,8 @@ struct RoundTrip {
     let distanceMeters: Double
     let durationSeconds: Double
     let roadStats: RoadStats
+    /// Index ranges of `coordinates` on residential street (ORS waytype 3).
+    let streetRuns: [ClosedRange<Int>]
 
     var durationMinutes: Double { durationSeconds / 60 }
 

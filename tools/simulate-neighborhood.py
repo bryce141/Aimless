@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Neighborhood variant of simulate-ranking.py, used to tune DurationOption.neighborhood.
+"""Simulate Neighborhood mode end to end, used to tune it on 2026-10-01.
 
-The 4,000 m size only, from 12 suburbs. Verifies every loose-band candidate and
-saves residential-street share (ORS waytype 3) for both the candidate and the
-driven route, so pre-filter and ranking policies can be replayed offline.
-Same tunnel as simulate-ranking.py:
+Per origin and request size: 24 round-trip seeds, the 6 most residential of each
+12 verified with handoff stops placed on residential street (res_stops mirrors
+Handoff.residentialWaypoints), then the app's ranking. Prints empties, retries,
+residential share, duration and retrace per request size.
+Run through a tunnel:
   ssh -i ~/.ssh/aimless_oracle -f -N -L 18080:127.0.0.1:8080 ubuntu@129.213.20.151
-  python3 tools/simulate-neighborhood.py out.json
+  python3 tools/simulate-neighborhood.py
 """
 import json, math, urllib.request, statistics
 from concurrent.futures import ThreadPoolExecutor
@@ -21,7 +22,7 @@ ORIGINS = [
     ("Denver CO",   39.7392, -104.9903),
     ("Austin TX",   30.2672, -97.7431),
 ]
-SIZES = [(15, 4000)]
+SIZES = [(30, 6500), (60, 33000), (90, 70000), (120, 85000)]
 SEEDS = list(range(1, 11))
 
 
@@ -168,69 +169,84 @@ def one(origin, minutes, meters, seed):
     return {"origin": name, "minutes": minutes, "seed": seed, "fwd": f, "rev": r}
 
 
-
-# ---------------- generate simulation ----------------
-import sys
-ORIGINS = [
-    ("Marlboro NJ", 40.4001, -74.3457), ("Denver CO", 39.7392, -104.9903),
-    ("Austin TX", 30.2672, -97.7431), ("Naperville IL", 41.7508, -88.1535),
-    ("Plano TX", 33.0198, -96.6989), ("Cary NC", 35.7915, -78.7811),
-    ("Levittown NY", 40.7259, -73.5143), ("Dyker Hts NY", 40.6215, -74.0151),
-    ("Scottsdale AZ", 33.4942, -111.9261), ("Overland Pk KS", 38.9822, -94.6708),
-    ("Roseville CA", 38.7521, -121.2880), ("Marietta GA", 33.9526, -84.5499),
-]
-SEEDS = range(1, 25)
-
-def street(f):
-    rows = (f["properties"].get("extras", {}).get("waytype", {}) or {}).get("summary", [])
-    t = sum(r["distance"] for r in rows) or 1
-    return sum(r["distance"] for r in rows if int(r["value"]) == 3) / t
-
-def cand(o, minutes, meters, seed):
-    name, lat, lon = o
-    rt = round_trip(lat, lon, meters, seed)
-    if not rt or not rt.get("features"):
-        return None
-    f = rt["features"][0]
-    s = stats(f)
-    return {"o": name, "m": minutes, "seed": seed, "coords": f["geometry"]["coordinates"],
-            "est": s["duration"] / 60 * 0.75, "hw": s["highway"], "street": street(f)}
-
+import sys, statistics as st
+ORIGINS = [("Marlboro NJ",40.4001,-74.3457),("Naperville IL",41.7508,-88.1535),("Plano TX",33.0198,-96.6989),
+ ("Cary NC",35.7915,-78.7811),("Levittown NY",40.7259,-73.5143),("Overland Pk KS",38.9822,-94.6708),
+ ("Roseville CA",38.7521,-121.2880),("Marietta GA",33.9526,-84.5499),("Scottsdale AZ",33.4942,-111.9261),("Denver CO",39.7392,-104.9903)]
+SIZES=[(30,6500),(45,15000),(60,33000)]
+def wt_mask(f):
+    n=len(f["geometry"]["coordinates"]); m=[0]*n
+    for a,b,v in (f["properties"]["extras"]["waytype"]["values"]):
+        for i in range(a,min(b,n-1)+1): m[i]=v
+    return m
+def share(f):
+    rows=f["properties"]["extras"]["waytype"]["summary"]; t=sum(r["distance"] for r in rows) or 1
+    return sum(r["distance"] for r in rows if r["value"]==3)/t
+def res_stops(coords, mask, count=8):
+    cum=[0.0]
+    for i in range(1,len(coords)): cum.append(cum[-1]+haversine(coords[i-1],coords[i]))
+    total=cum[-1]; step=total/(count+1); out=[]
+    # residential run depth: distance to nearest non-residential point
+    depth=[0.0]*len(coords); last=-1e18
+    for i in range(len(coords)):
+        if mask[i]!=3: last=cum[i]
+        depth[i]=cum[i]-last
+    last=1e18
+    for i in range(len(coords)-1,-1,-1):
+        if mask[i]!=3: last=cum[i]
+        depth[i]=min(depth[i], last-cum[i]) if mask[i]==3 else 0
+    for k in range(1,count+1):
+        lo,hi=step*(k-0.5),step*(k+0.5)
+        idx=[i for i in range(len(coords)) if lo<=cum[i]<=hi and mask[i]==3]
+        if idx:
+            i=max(idx,key=lambda i:depth[i]); out.append(coords[i])
+        else:
+            t=step*k; i=min(range(len(cum)),key=lambda i:abs(cum[i]-t)); out.append(coords[i])
+    return out
+def one(o,m,meters,seed):
+    n,lat,lon=o; rt=round_trip(lat,lon,meters,seed)
+    if not rt or not rt.get("features"): return None
+    f=rt["features"][0]; c=f["geometry"]["coordinates"]; s0=c[0]; res={}
+    for name,w in (("uniform",downsample(c)),("residential",res_stops(c,wt_mask(f)))):
+        if len(w)!=8: return None
+        r=reroute([s0]+w+[s0])
+        if not r or not r.get("features"): return None
+        g=r["features"][0]; s=stats(g)
+        res[name]={"min":s["duration"]/60,"hw":s["highway"],"street":share(g),"rt":retrace_pct(g["geometry"]["coordinates"])}
+    return {"o":n,"m":m,"seed":seed,"rt_street":share(f),**res}
+ORIGINS += [("Austin TX",30.2672,-97.7431),("Dyker Hts NY",40.6215,-74.0151)]
+T=45
+def cand(o,meters,seed):
+    n,lat,lon=o; rt=round_trip(lat,lon,meters,seed)
+    if not rt or not rt.get("features"): return None
+    f=rt["features"][0]; s=stats(f)
+    return {"o":n,"req":meters,"seed":seed,"f":f,"est":s["duration"]/60*0.75,"hw":s["highway"],"cstreet":share(f)}
 def verify(c):
-    wps = downsample(c["coords"])
-    if len(wps) != WAYPOINTS:
-        return None
-    start = c["coords"][0]
-    r = reroute([start] + wps + [start])
-    if not r or not r.get("features"):
-        return None
-    f = r["features"][0]; s = stats(f)
-    return {"seed": c["seed"], "min": s["duration"] / 60, "hw": s["highway"], "street": street(f), "cstreet": c["street"],
-            "rt": retrace_pct(f["geometry"]["coordinates"]) / 100}
-
-jobs = [(o, m, me, s) for o in ORIGINS for (m, me) in SIZES for s in SEEDS]
-with ThreadPoolExecutor(max_workers=6) as ex:
-    cands = [c for c in ex.map(lambda a: cand(*a), jobs) if c]
-
-def worth(cs, target):
-    lo, hi = target * 0.55, target * 1.45
-    ok = [c for c in cs if c["hw"] <= 0.20 and lo <= c["est"] <= hi]
-    return ok
-
-groups = {}
-for c in cands:
-    groups.setdefault((c["o"], c["m"]), []).append(c)
-to_verify = []
-for (o, m), cs in groups.items():
-    for rnd in (range(1, 13), range(13, 25)):
-        to_verify += worth([c for c in cs if c["seed"] in rnd], m)
-with ThreadPoolExecutor(max_workers=6) as ex:
-    vs = list(ex.map(verify, to_verify))
-verified = {}
-for c, v in zip(to_verify, vs):
-    if v:
-        verified.setdefault((c["o"], c["m"]), []).append(v)
-
-json.dump({"cands": len(cands), "verified": {f"{k[0]}|{k[1]}": v for k, v in verified.items()}},
-          open(sys.argv[1], "w"))
-print("candidates", len(cands), "verified", sum(map(len, verified.values())))
+    co=c["f"]["geometry"]["coordinates"]; w=res_stops(co,wt_mask(c["f"]))
+    r=reroute([co[0]]+w+[co[0]])
+    if not r or not r.get("features"): return None
+    g=r["features"][0]; s=stats(g)
+    return {"seed":c["seed"],"min":s["duration"]/60,"hw":s["highway"],"street":share(g),"rt":retrace_pct(g["geometry"]["coordinates"])/100}
+REQS=[13000,15000,17000]
+jobs=[(o,m,s) for o in ORIGINS for m in REQS for s in range(1,25)]
+with ThreadPoolExecutor(max_workers=6) as ex: C=[c for c in ex.map(lambda a:cand(*a),jobs) if c]
+def worth(cs):
+    ok=[c for c in cs if c["hw"]<=.20 and T*.55<=c["est"]<=T*1.45]
+    return sorted(ok,key=lambda c:-c["cstreet"])[:6]
+todo=[]
+for o in ORIGINS:
+    for m in REQS:
+        cs=[c for c in C if c["o"]==o[0] and c["req"]==m]
+        todo+=worth([c for c in cs if c["seed"]<=12])+worth([c for c in cs if c["seed"]>12])
+with ThreadPoolExecutor(max_workers=6) as ex: V=list(ex.map(verify,todo))
+band=lambda L,tol:[v for v in L if v["hw"]<=.15 and T*(1-tol)<=v["min"]<=T*(1+tol)]
+rank=lambda L:sorted(L,key=lambda v:(v["rt"]>.10, v["rt"] if v["rt"]>.10 else 0, -v["street"], abs(v["min"]-T)))[:3]
+for m in REQS:
+    tops=[];E=0;retry=0
+    for o in ORIGINS:
+        vs=[v for c,v in zip(todo,V) if v and c["o"]==o[0] and c["req"]==m]
+        top=rank(band([v for v in vs if v["seed"]<=12],.25))
+        if len(top)<3 or any(v["rt"]>.10 for v in top):
+            retry+=1; top=rank(band(vs,.40))
+        E+=not top; tops+=top
+    print(f"{m} m: empty {E}/{len(ORIGINS)}  retry {retry}/{len(ORIGINS)}  residential {st.mean(v['street'] for v in tops)*100:.0f}%  minutes median {st.median(v['min'] for v in tops):.0f} (range {min(v['min'] for v in tops):.0f}-{max(v['min'] for v in tops):.0f})  repeated {st.mean(v['rt'] for v in tops)*100:.1f}%  shown {len(tops)}")

@@ -147,7 +147,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
 | ~~13~~ | | ~~Retrace: colour on map + show the stat~~ — **live 2026-09-09** as 1.0.2 build 7 |
 | 14 | | Retrace half **built 2026-10-01 in 1.0.3 build 8**, awaiting device test + submit. Reversal button and curviness moved to **1.0.4** |
-| 16 | | **Neighborhood mode — built 2026-10-01 in 1.0.3 build 8**, same release by Bryce's choice |
+| 16 | | **Neighborhood mode — built 2026-10-01 in 1.0.3 build 8** (45-min residential-stop tour, second version), same release by Bryce's choice; on Bryce's phone for testing |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
 **13, 14 and 15 are app changes**, so unlike everything above them they need a
@@ -186,36 +186,61 @@ both only reorder.
 #### Neighborhood mode
 
 A fifth slider stop at the left end: big label **"Neighborhood"**, tick
-**"Near"**. `DurationOption.neighborhood` (raw 15): 4,000 m request, median 15
-min driven at ORS speeds (≈25-30 min at a lights crawl). `prefersStreets` makes
-`worthVerifying` spend its 6 verifications on the most residential candidates
-and makes `rank` order by `RoadStats.streetPct` after the retrace bucket.
+**"Near"**. **A ~45-minute tour through other people's neighbourhoods**, for
+Christmas-lights drives.
+
+**First version rejected on the phone, same day.** It was a 15-minute loop
+(4,000 m) ranked for residential street, and Bryce called it "a route around my
+own neighborhood": he wanted 30+ minutes through *other* neighbourhoods.
+
+**What limits any version of this, measured:** residential share collapses as
+loops grow: 32% at 30 min, 6-13% at 45, 3% at 60, 2% at 90-120, and ranking
+alone barely moves it (60 min: 3% → 7%). Two causes:
+
+1. ORS builds round trips from fastest roads. A server-side "prefer
+   residential" custom model exists in ORS 9.10 but is off here ("Custom model
+   not available for profile 'driving-car'"). Turning it on needs
+   `build.encoder_options.enable_custom_models: true`, i.e. **a full US graph
+   rebuild** (~7 h on HeiGIT's 200/day).
+2. **Google navigates its own fastest roads between our 8 stops**, so even a
+   perfect residential polyline would be driven on main roads between stops.
+
+**So the lever is where the 8 stops sit.** `Handoff.residentialWaypoints`
+places each stop at the point deepest inside a residential run within its
+slice of the loop, from ORS's `extras.waytype.values` (now decoded as
+`RoundTrip.streetRuns`). Google then has to drive *into* each neighbourhood. On
+357 loops / 10 origins: 45 min 12% → 22% residential; 60 min 4% → 12%.
+
+**As shipped:** `DurationOption.neighborhood` raw 45, 15,000 m request;
+`worthVerifying` spends its 6 verifications on the most residential
+candidates; `drivenRoute(residentialStops:)` uses residential stops; `rank`
+puts loops in the normal ±25% band ahead of widened-retry ones, then orders by
+`streetPct`. Simulated end to end over 12 origins
+(`tools/simulate-neighborhood.py`): **29% residential, median 41 min, 0 empty,
+retrace ~5%.** 13,000 m (37 min, 30%) and 17,000 m (47 min, 26%) were the
+alternatives.
+
+**The band rule came from the simulator, not the simulation:** the first iPad
+run showed 61 min / 16 mi for a 45-minute target, a widened-band loop winning
+on street share. With the rule: 50 min / 13 mi / 4% repeated, through Old
+Bridge and Brownville.
+
+**Swift and Python stop pickers agree:** on three real loops every stop that is
+residential in one is residential in the other, mostly the same point or one
+vertex along; the rest are near-ties or the fallback, which Swift interpolates
+and Python snaps to a vertex.
 
 **"Street" is ORS waytype 3 = OSM `residential`, `living_street`, `service`**,
-read from `WayTypeParser.java` in the ORS repo on 2026-10-01, not assumed.
+from `WayTypeParser.java` in the ORS repo, not assumed.
 
-**ORS cannot be told to prefer residential streets** for driving-car, so this
-is selection, not routing. Measured over 12 origins (`tools/simulate-neighborhood.py`):
-
-| Policy at 4,000 m | Residential share of shown loops |
-|---|---|
-| 30-minute size today, for comparison | ~31% |
-| Smaller size, today's rules | 42% |
-| + rank by street | 45% |
-| **+ pick and rank by street (shipped)** | **50%**, no empties, retrace unchanged |
-
-Suburbs do best (Overland Park, Levittown 74%); downtown origins stay low
-(Denver 6%), which is honest. Expect ~15% retrace in places like Marlboro: the
-street you leave home on is usually the one you return on.
+**1 hour and longer are deliberately unchanged.** Residential stops there make
+loops run ~15% over the picked time (60 → 75 min), breaking "the duration you
+see is the duration you drive". Revisit after the holidays if wanted.
 
 **The spoken label is `lineLimit(1)` with `minimumScaleFactor(0.6)`.**
 "Neighborhood" is wider than the card in the iPad window, and a wrapped second
-line is the extra height that clipped Generate in rejection 3.
-
-**Verified on the iPad Air 11-inch (M4) simulator:** home screen with
-Neighborhood selected (one line, five ticks, Generate fully visible); generate
-from Marlboro returned 3 loops, first 14 min / 4 mi / 0% highway through the
-residential grid by Veterans Park. Debug and Release build.
+line is the extra height that clipped Generate in rejection 3. Verified on the
+iPad Air 11-inch (M4) simulator: one line, five ticks, Generate visible.
 
 #### Retrace re-rank
 

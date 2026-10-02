@@ -55,6 +55,62 @@ enum Handoff {
         return out
     }
 
+    /// Like `waypoints`, but each stop sits on residential street where the
+    /// loop has any: within each of the `count` equal slices of the drive, the
+    /// residential point deepest inside its run (farthest from a main road),
+    /// falling back to the even-spaced point when a slice has none.
+    ///
+    /// For Neighborhood mode. Google drives its own fastest roads between
+    /// stops, so a stop inside a neighbourhood is what makes it drive in.
+    /// Measured 2026-10-01 at the 45-minute size: 22% of the rerouted drive on
+    /// residential street against 12% with even spacing.
+    static func residentialWaypoints(
+        along coordinates: [CLLocationCoordinate2D],
+        streetRuns: [ClosedRange<Int>],
+        count: Int = waypointCount
+    ) -> [CLLocationCoordinate2D] {
+        let even = waypoints(along: coordinates, count: count)
+        guard even.count == count, !streetRuns.isEmpty else { return even }
+
+        var cumulative: [CLLocationDistance] = [0]
+        cumulative.reserveCapacity(coordinates.count)
+        for i in 1..<coordinates.count {
+            let a = CLLocation(latitude: coordinates[i - 1].latitude,
+                               longitude: coordinates[i - 1].longitude)
+            let b = CLLocation(latitude: coordinates[i].latitude,
+                               longitude: coordinates[i].longitude)
+            cumulative.append(cumulative[i - 1] + b.distance(from: a))
+        }
+        guard let total = cumulative.last, total > 0 else { return even }
+        let step = total / Double(count + 1)
+
+        // ORS can report one stretch as back-to-back runs sharing an endpoint;
+        // merge them, or a point mid-street reads as being at a run's edge.
+        var merged: [ClosedRange<Int>] = []
+        for run in streetRuns.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            if let last = merged.last, run.lowerBound <= last.upperBound {
+                merged[merged.count - 1] = last.lowerBound...max(last.upperBound, run.upperBound)
+            } else {
+                merged.append(run)
+            }
+        }
+
+        // Depth of each residential point: distance to the nearer end of its run.
+        var depth: [Int: CLLocationDistance] = [:]
+        for run in merged {
+            let start = cumulative[run.lowerBound], end = cumulative[run.upperBound]
+            for i in run { depth[i] = min(cumulative[i] - start, end - cumulative[i]) }
+        }
+
+        return (1...count).map { k in
+            let lo = step * (Double(k) - 0.5), hi = step * (Double(k) + 0.5)
+            let best = depth
+                .filter { lo <= cumulative[$0.key] && cumulative[$0.key] <= hi }
+                .max { $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key }
+            return best.map { coordinates[$0.key] } ?? even[k - 1]
+        }
+    }
+
     /// Universal link form — works whether or not the Google Maps app is
     /// installed. If it isn't, this opens in Safari, which still works.
     ///
