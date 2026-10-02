@@ -132,7 +132,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~5~~ | **B** | ~~Cloudflare Access~~ — **done 2026-09-03**, enforcing |
 | ~~6~~ | | ~~Test the health alarm~~ — **done 2026-09-03**, full cycle verified |
 | ~~7~~ | | ~~Delete stray `imless` Worker~~ — **done 2026-09-03** |
-| 8 | **B** | Reclaim 2.4 GB (`graphs.nj-ca`) — **cleared to delete 2026-10-01**: verified idle, ORS mounts only `graphs`. Bryce runs `rm -rf ~/selfhost/graphs.nj-ca` (Claude's session was not permitted to) |
+| ~~8~~ | **B** | ~~Reclaim 2.4 GB (`graphs.nj-ca`)~~ — **done 2026-10-01**, needed `sudo` (files are root-owned); disk 98 GB free, health `ok` after |
 | ~~9~~ | | ~~Explain `round_trip` failure near water~~ — **done 2026-09-03**, it is loop size |
 | ~~10~~ | | ~~Alaska region box~~ — **done 2026-09-03**, plus Hawaii |
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
