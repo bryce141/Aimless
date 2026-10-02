@@ -51,9 +51,10 @@ It now is. Whoever fixed it did not write it down; that is how it hid for two we
 - **The app works and is shipping.** Nothing is on fire.
 - **Routing is ours.** The whole US runs on the Oracle box; capacity is ~2,750
   users/day against ~5 before 2026-09-03. See "The ceilings".
-- **Next work is task 14** — the retrace filter, the reverse button, curviness.
-  The maths for all three is already written, cross-checked and merged in
-  `Aimless/Services/Geometry.swift`, so that build is mostly UI.
+- **1.0.3 build 8 is built and simulator-tested (2026-10-01)**, not yet
+  submitted. See "1.0.3 as built". **Submit by mid-November**: Apple's
+  holiday slowdown and shutdown land in late December, and 30-minute loops are
+  what people will use for Christmas-lights drives.
 - **Task 8 is now actionable** — the US graph has had six days of real use.
 - The open checklist below is the authoritative list. Numbers are stable.
 
@@ -145,7 +146,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~11~~ | | ~~Correct `selfhost/README.md`~~ — **done 2026-09-03** |
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
 | ~~13~~ | | ~~Retrace: colour on map + show the stat~~ — **live 2026-09-09** as 1.0.2 build 7 |
-| 14 | | Retrace **filter**, reversal button, curviness ranking — **next up**, maths already merged |
+| 14 | | Retrace half **built 2026-10-01 as 1.0.3 build 8**, awaiting device test + submit. Reversal button and curviness moved to **1.0.4** |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
 **13, 14 and 15 are app changes**, so unlike everything above them they need a
@@ -172,6 +173,72 @@ show the user nothing.
 
 `Aimless/Services/Geometry.swift` already implements the maths for both releases
 and is cross-checked — see the pre-submission checklist.
+
+### 1.0.3 as built, 2026-10-01
+
+**Scope cut on purpose.** The plan put the retrace filter, the reverse button,
+curviness and seed scaling in one release. With Apple's December shutdown as a
+hard deadline, 1.0.3 carries only changes that **cannot show the user nothing
+and add nothing new to tap**: the same rule that let 1.0.2 pass first time.
+The reverse button (a new control) and curviness go to **1.0.4 in January**;
+task 15 stays unmeasured.
+
+**1. Retrace re-ranks rather than filters.** `LoopScorer.rank` sorts loops with
+`hasNotableRetrace` (≥10%, the same line that shows the note) behind clean ones,
+least-repeated first. Nothing is removed, so the result set is exactly as large
+as before. **2. A retry round also fires when a shown loop is notable**, in
+`LoopViewModel.generate`, not only when there are fewer than three.
+
+**Tuned by simulation, not the 113-loop sample.** `tools/simulate-ranking.py`
+replays the app's whole generate (24 seeds, best 6 of each 12 verified, retry)
+from 12 suburbs, the kind of places people drive for lights, through an SSH tunnel to
+the box; `tools/analyze-ranking.py` replays ranking policies over the saved
+loops. 1,031 candidates, 474 verified.
+
+| 30-minute size | today (1.0.2) | 1.0.3 |
+|---|---|---|
+| Mean retrace of the three shown | 13.1% | **5.2%** |
+| Worst shown | 44.4% | **16.7%** |
+| Shown slots over 10% | 47% | **3%** |
+| Empty results | 0 of 12 | 0 of 12 |
+| Generates needing a retry round | 58% | 75% |
+| Median distance from 30 min | 20.9% | 24.5% |
+
+Marlboro specifically: mean 33.3% → 8.7%, worst 43.3% → 16.7%. 60m improves
+(worst 16.6% → 7.6%); 90m and 120m barely change because they rarely retrace.
+The cost is about one minute of duration accuracy at 30m and more retries.
+
+**The first policy tried had a bug the simulation caught:** when fewer than three
+clean loops exist, the leftovers were ordered by duration, so Marlboro still
+showed its 43% loop. Leftovers are now ordered by least retrace.
+
+**Noticed, not acted on:** the simulation returned no loops at 120m for 3 of 11
+origins under *today's* code too. That's a pre-existing gap, unchanged by 1.0.3, and
+probably the known water/loop-size failure. Worth a look before 1.0.4.
+
+**3. Backstop wording.** `.fixFailed` now reads "No location yet. Answer the
+permission prompt if one is showing, or try a clearer view of the sky." It's
+98 characters, deliberately shorter than `.denied` (109), the longest note
+verified to fit the iPad window with Generate visible. **That
+state could not be triggered in the simulator** (it holds its last fix even after
+`simctl location clear`), so the fit is argued from length, not seen.
+
+**Verified on the iPad Air 11-inch (M4) simulator:**
+
+| Check | Result |
+|---|---|
+| Marlboro, 30 min, permission granted | 3 loops; first is **2% repeated** (1.0.2 led with 43% here) |
+| **Threshold forced to 0%**, every loop "notable" | **Still 3 loops**, note renders, Drive This visible. Source reverted after |
+| Permission denied | Callout + Open Settings, Generate visible |
+| Debug and Release builds | Both succeed |
+
+**Still to do before submitting (Bryce):** the permission-prompt tap on a
+real device or a fresh simulator (the one check that needs a hand on the
+screen), archive, What's New text, submit.
+
+Simulator note: `clients.plist` keys contain a colon, so PlistBuddy cannot edit
+them; use Python `plistlib`. This device had been left at denied (`Authorization
+= 1`) by an earlier session.
 
 ### Task 13 as built, 2026-09-04
 

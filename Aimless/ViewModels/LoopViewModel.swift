@@ -54,7 +54,13 @@ final class LoopViewModel {
             //
             // Skipped when already throttled: another 18 requests into a rate
             // limit just burns quota and returns nothing.
-            if ranked.count < LoopScorer.desiredCount && !throttled {
+            //
+            // Also retried when a shown loop has notable retrace: a second
+            // round usually finds cleaner ones, and `rank` only reorders, so
+            // the retry can never leave fewer loops than it started with.
+            let needsMore = ranked.count < LoopScorer.desiredCount
+                || ranked.contains { $0.hasNotableRetrace }
+            if needsMore && !throttled {
                 if let more = try? await service.generateRoundTrips(
                     from: origin,
                     requestMeters: meters,

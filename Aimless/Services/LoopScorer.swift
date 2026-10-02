@@ -33,6 +33,20 @@ enum LoopScorer {
             .filter { $0.roadStats.highwayPct <= maxHighwayShare }
             .filter { (low...high).contains($0.durationMinutes) }
             .sorted { a, b in
+                // Retrace ranks, it never filters. A filter is a new way to
+                // return nothing, which is the shape of rejections three and
+                // four. Notable-retrace loops go to the back, least-repeated
+                // first, so they only show when nothing cleaner exists.
+                //
+                // Simulated 2026-10-01 over 12 origins: 30m top-three slots
+                // over 10% fell from 47% to 3%, worst shown from 44% to 17%,
+                // with no change in empty results. See HANDOFF.md.
+                if a.hasNotableRetrace != b.hasNotableRetrace {
+                    return !a.hasNotableRetrace
+                }
+                if a.hasNotableRetrace, a.retraceFraction != b.retraceFraction {
+                    return a.retraceFraction < b.retraceFraction
+                }
                 // Most candidates come back at exactly 0% highway, so in
                 // practice duration closeness is what does the ordering.
                 if a.roadStats.highwayPct != b.roadStats.highwayPct {

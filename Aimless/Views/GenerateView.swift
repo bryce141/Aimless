@@ -474,7 +474,11 @@ private enum BlockNote: Equatable {
         case .reducedAccuracy:
             return "Precise Location is off, so we can\u{2019}t tell where the loop should start. Turn it on for Aimless in Settings."
         case .fixFailed:
-            return "Couldn\u{2019}t get a location fix. Somewhere with a clearer view of the sky usually does it."
+            // Fires on the 15-second backstop, which is also what happens when
+            // the permission prompt is still unanswered, so name both causes.
+            // Kept no longer than `.denied`, the longest note verified to fit
+            // the iPad compatibility window with Generate visible.
+            return "No location yet. Answer the permission prompt if one is showing, or try a clearer view of the sky."
         }
     }
 
