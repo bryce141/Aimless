@@ -36,6 +36,13 @@ Fixed 2026-09-14 23:29Z by `restart: unless-stopped` in
 2026-10-01: the running container reports `restart=unless-stopped`, started
 2026-09-14 23:30Z, health `ok`. **Not yet re-proven by an actual reboot.**
 
+**The monitor caught it; nobody heard it.** UptimeRobot logged the incident at
+2026-09-12 20:45:56 EDT (the reboot minute) through 2026-09-14 19:38:13 EDT
+(the fix), 1d 22h 52m. No UptimeRobot email has ever landed in
+bdrp777@gmail.com, so the alerts went to an inbox nobody was watching.
+**Fixed 2026-10-01:** UptimeRobot iOS app installed with push on, attached to
+the monitor, test notification confirmed by Bryce.
+
 **Lesson:** a reboot of the box is an outage unless the restart policy is set.
 It now is. Whoever fixed it did not write it down; that is how it hid for two weeks.
 
