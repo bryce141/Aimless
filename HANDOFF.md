@@ -147,7 +147,7 @@ Ordered by what bites first, not by size. **B** = only Bryce can do it.
 | ~~12~~ | | ~~Clean stale "What is left"~~ — **done 2026-09-03** |
 | ~~13~~ | | ~~Retrace: colour on map + show the stat~~ — **live 2026-09-09** as 1.0.2 build 7 |
 | 14 | | Retrace half **built 2026-10-01 in 1.0.3 build 8**, awaiting device test + submit. Reversal button and curviness moved to **1.0.4** |
-| 16 | | **Neighborhood mode — built 2026-10-01 in 1.0.3 build 8** (45-min residential-stop tour, second version), same release by Bryce's choice; on Bryce's phone for testing |
+| 16 | | **Neighborhood mode — built 2026-10-01 in 1.0.3 build 8** (45-min residential-stop tour, second version), same release by Bryce's choice; **accepted by Bryce on his phone 2026-10-01** ("different than 30 min and 1 hour, good enough") |
 | 15 | | Seed scaling off `X-Aimless-Served-By` — **proposed, unmeasured** |
 
 **13, 14 and 15 are app changes**, so unlike everything above them they need a
