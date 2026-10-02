@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Measure (1) retrace % and (2) forward-vs-reversed differences on real loops.
+"""Neighborhood variant of simulate-ranking.py, used to tune DurationOption.neighborhood.
 
-Runs on the Oracle box against local ORS. Replicates the app's pipeline exactly:
-round_trip -> downsample to 8 waypoints (Handoff.swift) -> reroute -> that is the Loop.
+The 4,000 m size only, from 12 suburbs. Verifies every loose-band candidate and
+saves residential-street share (ORS waytype 3) for both the candidate and the
+driven route, so pre-filter and ranking policies can be replayed offline.
+Same tunnel as simulate-ranking.py:
+  ssh -i ~/.ssh/aimless_oracle -f -N -L 18080:127.0.0.1:8080 ubuntu@129.213.20.151
+  python3 tools/simulate-neighborhood.py out.json
 """
 import json, math, urllib.request, statistics
 from concurrent.futures import ThreadPoolExecutor
